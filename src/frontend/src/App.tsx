@@ -7,6 +7,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { UploadProvider } from "./context/UploadContext";
 import AuthPage from "./pages/AuthPage";
 import ChannelPage from "./pages/ChannelPage";
+import CreatorDashboardPage from "./pages/CreatorDashboardPage";
 import DraftsPage from "./pages/DraftsPage";
 import ExplorePage from "./pages/ExplorePage";
 import HistoryPage from "./pages/HistoryPage";
@@ -102,6 +103,11 @@ const draftsRoute = createRoute({
   path: "/drafts",
   component: DraftsPage,
 });
+const creatorDashboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/creator-dashboard",
+  component: CreatorDashboardPage,
+});
 
 const routeTree = rootRoute.addChildren([
   homeRoute,
@@ -118,6 +124,7 @@ const routeTree = rootRoute.addChildren([
   historyRoute,
   storageRoute,
   draftsRoute,
+  creatorDashboardRoute,
 ]);
 
 const router = createRouter({ routeTree });

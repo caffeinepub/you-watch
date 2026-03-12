@@ -1,38 +1,31 @@
-# YOU WATCH
+# YOU WATCH — Creator Dashboard
 
 ## Current State
-- VideoPage has a 2-column layout (desktop): left column has player/info/actions/description/comments, right column has suggested videos
-- VideoPlayer has basic controls (play/pause, volume, seek, fullscreen, settings) but no rewind/forward buttons, no CC, no Cast, no double-tap, no 5s auto-hide
-- Controls auto-hide timer is 2.5s, not 5s
-- No back button in top nav or video page header
-- Suggested videos appear in a separate column (right on desktop), not below main content in mobile-first order
-- Comments appear before suggested videos in mobile view
-- SuggestedVideoCard uses Link (full page reload navigation)
-- Controls do not respond to tap-to-show pattern on mobile
+The app has ProfilePage with links to /settings, /history, /storage, /drafts. There is no /creator-dashboard route. App.tsx manages all routes.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Back arrow button on the video watch page header (top-left, beside logo)
-- Rewind 10s and Forward 10s buttons in player controls overlay
-- CC (Captions) button in player controls
-- Cast button in player controls
-- Double-tap gesture: left side rewinds 10s, right side forwards 10s with +10s/-10s animation
-- 5-second auto-hide timer for controls (currently 2.5s)
-- Tap-to-show controls on mobile (tap video area shows controls, 5s idle hides them)
-- Show +10s / -10s ripple animation on double-tap
+- New page: `/creator-dashboard` (CreatorDashboardPage component)
+- Stats cards section: Total Views, Total Subscribers, Total Videos Uploaded, Total Likes — loaded from backend after login
+- Video Performance list: thumbnail, title, views, likes, comments, upload date, with Edit/Delete/View Analytics quick actions per video
+- Recent Activity section: new subscribers, new comments, likes on videos — loaded from backend after login
+- "Creator Dashboard" link/button in ProfilePage's Settings & More section
+- Route registration in App.tsx
 
 ### Modify
-- VideoPage layout order (mobile-first, single column): Player → Title+Channel → Actions → Description → Suggested Videos → Comments
-- On desktop, keep 2-column layout but ensure suggested videos section is present in left column flow before comments
-- SuggestedVideoCard: use onClick + navigate instead of Link to load video without full page reload
-- Auto-hide timer extended to 5 seconds
-- Controls overlay: restructure to include all buttons in correct positions
+- `ProfilePage.tsx` — add Creator Dashboard entry in the Settings & More links list
+- `App.tsx` — add creatorDashboardRoute
 
 ### Remove
-- Comments-before-suggested ordering on mobile
+- Nothing
 
 ## Implementation Plan
-1. VideoPlayer.tsx: Add rewind10/forward10 buttons, CC button, Cast button, double-tap handler with animation, extend auto-hide to 5s, tap-to-toggle controls
-2. VideoPage.tsx: Add back button header, reorder layout (Player → Info → Actions → Description → Suggested → Comments), single column on mobile, 2-col on desktop
-3. SuggestedVideoCard.tsx: Replace Link with button+navigate for SPA navigation without reload
+1. Create `src/frontend/src/pages/CreatorDashboardPage.tsx` with:
+   - Auth guard (redirect to /auth if not logged in)
+   - Stats cards (Total Views, Subscribers, Videos, Likes) loaded client-side from mock/backend data after mount
+   - Video performance list with thumbnail, title, views, likes, comments, date, and action buttons (edit, delete, analytics)
+   - Recent activity feed (subscribers, comments, likes)
+   - All data fetched only after authentication, never at build time
+2. Update `App.tsx` to add the /creator-dashboard route
+3. Update `ProfilePage.tsx` to add Creator Dashboard link in the menu

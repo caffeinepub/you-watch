@@ -8,6 +8,7 @@ import {
   FileVideo,
   HardDrive,
   History,
+  LayoutDashboard,
   Loader2,
   Lock,
   LogOut,
@@ -220,6 +221,17 @@ export default function ProfilePage() {
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
           Settings &amp; More
         </h2>
+        <Link to="/creator-dashboard" data-ocid="profile.link">
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 hover:bg-muted/50 transition-colors">
+            <LayoutDashboard className="w-4 h-4 text-primary" />
+            <div>
+              <p className="text-sm font-medium">Creator Dashboard</p>
+              <p className="text-xs text-muted-foreground">
+                Stats, video performance, and activity
+              </p>
+            </div>
+          </div>
+        </Link>
         <Link to="/settings" data-ocid="profile.link">
           <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 hover:bg-muted/50 transition-colors">
             <Settings className="w-4 h-4 text-primary" />
