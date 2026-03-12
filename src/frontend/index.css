@@ -1,0 +1,109 @@
+@font-face {
+  font-family: 'Cabinet Grotesk';
+  src: url('/assets/fonts/CabinetGrotesk-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Outfit';
+  src: url('/assets/fonts/Outfit-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0.10 0.005 260;
+    --foreground: 0.95 0.01 260;
+    --card: 0.15 0.005 260;
+    --card-foreground: 0.95 0.01 260;
+    --popover: 0.13 0.005 260;
+    --popover-foreground: 0.95 0.01 260;
+    --primary: 0.55 0.22 25;
+    --primary-foreground: 0.99 0 0;
+    --secondary: 0.20 0.005 260;
+    --secondary-foreground: 0.90 0.01 260;
+    --muted: 0.22 0.005 260;
+    --muted-foreground: 0.58 0.01 260;
+    --accent: 0.22 0.005 260;
+    --accent-foreground: 0.90 0.01 260;
+    --destructive: 0.50 0.20 20;
+    --destructive-foreground: 0.99 0 0;
+    --border: 0.22 0.005 260;
+    --input: 0.20 0.005 260;
+    --ring: 0.55 0.22 25;
+    --radius: 0.5rem;
+    --chart-1: 0.55 0.22 25;
+    --chart-2: 0.65 0.18 180;
+    --chart-3: 0.70 0.16 120;
+    --chart-4: 0.60 0.20 60;
+    --chart-5: 0.55 0.18 300;
+    --sidebar: 0.12 0.005 260;
+    --sidebar-foreground: 0.90 0.01 260;
+    --sidebar-primary: 0.55 0.22 25;
+    --sidebar-primary-foreground: 0.99 0 0;
+    --sidebar-accent: 0.18 0.005 260;
+    --sidebar-accent-foreground: 0.90 0.01 260;
+    --sidebar-border: 0.20 0.005 260;
+    --sidebar-ring: 0.55 0.22 25;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-body;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: oklch(var(--background));
+  }
+  ::-webkit-scrollbar-thumb {
+    background: oklch(var(--muted));
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(var(--muted-foreground));
+  }
+}
+
+@layer utilities {
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .video-gradient {
+    background: linear-gradient(
+      135deg,
+      oklch(0.20 0.05 260),
+      oklch(0.18 0.04 300),
+      oklch(0.15 0.03 200)
+    );
+  }
+  .brand-gradient {
+    background: linear-gradient(
+      135deg,
+      oklch(0.55 0.22 25),
+      oklch(0.48 0.20 15)
+    );
+  }
+  .text-brand {
+    color: oklch(var(--primary));
+  }
+}
