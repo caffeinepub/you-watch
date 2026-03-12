@@ -1,9 +1,20 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Loader2, Lock, LogOut, Save, User } from "lucide-react";
+import {
+  FileVideo,
+  HardDrive,
+  History,
+  Loader2,
+  Lock,
+  LogOut,
+  Save,
+  Settings,
+  User,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAuthContext } from "../context/AuthContext";
@@ -118,7 +129,7 @@ export default function ProfilePage() {
         </Link>
       </div>
 
-      <form onSubmit={handleSave} className="space-y-5">
+      <form onSubmit={handleSave} className="space-y-5 mb-8">
         <div>
           <Label
             htmlFor="username"
@@ -201,6 +212,59 @@ export default function ProfilePage() {
           </Button>
         </div>
       </form>
+
+      <Separator className="mb-6" />
+
+      {/* Settings & More */}
+      <div className="space-y-2">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+          Settings &amp; More
+        </h2>
+        <Link to="/settings" data-ocid="profile.link">
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 hover:bg-muted/50 transition-colors">
+            <Settings className="w-4 h-4 text-primary" />
+            <div>
+              <p className="text-sm font-medium">Settings</p>
+              <p className="text-xs text-muted-foreground">
+                Language, theme, privacy, notifications
+              </p>
+            </div>
+          </div>
+        </Link>
+        <Link to="/history" data-ocid="profile.link">
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 hover:bg-muted/50 transition-colors">
+            <History className="w-4 h-4 text-primary" />
+            <div>
+              <p className="text-sm font-medium">History</p>
+              <p className="text-xs text-muted-foreground">
+                Watch, search, comment, and like history
+              </p>
+            </div>
+          </div>
+        </Link>
+        <Link to="/storage" data-ocid="profile.link">
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 hover:bg-muted/50 transition-colors">
+            <HardDrive className="w-4 h-4 text-primary" />
+            <div>
+              <p className="text-sm font-medium">Storage &amp; Cache</p>
+              <p className="text-xs text-muted-foreground">
+                Manage cached videos and app storage
+              </p>
+            </div>
+          </div>
+        </Link>
+        <Link to="/drafts" data-ocid="profile.link">
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 hover:bg-muted/50 transition-colors">
+            <FileVideo className="w-4 h-4 text-primary" />
+            <div>
+              <p className="text-sm font-medium">Draft Videos</p>
+              <p className="text-xs text-muted-foreground">
+                Continue or manage your draft uploads
+              </p>
+            </div>
+          </div>
+        </Link>
+      </div>
     </div>
   );
 }

@@ -7,11 +7,15 @@ import { AuthProvider } from "./context/AuthContext";
 import { UploadProvider } from "./context/UploadContext";
 import AuthPage from "./pages/AuthPage";
 import ChannelPage from "./pages/ChannelPage";
+import DraftsPage from "./pages/DraftsPage";
 import ExplorePage from "./pages/ExplorePage";
+import HistoryPage from "./pages/HistoryPage";
 import HomePage from "./pages/HomePage";
 import LibraryPage from "./pages/LibraryPage";
 import ProfilePage from "./pages/ProfilePage";
 import SearchPage from "./pages/SearchPage";
+import SettingsPage from "./pages/SettingsPage";
+import StoragePage from "./pages/StoragePage";
 import SubscriptionsPage from "./pages/SubscriptionsPage";
 import UploadPage from "./pages/UploadPage";
 import VideoPage from "./pages/VideoPage";
@@ -78,6 +82,26 @@ const authRoute = createRoute({
   path: "/auth",
   component: AuthPage,
 });
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings",
+  component: SettingsPage,
+});
+const historyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/history",
+  component: HistoryPage,
+});
+const storageRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/storage",
+  component: StoragePage,
+});
+const draftsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/drafts",
+  component: DraftsPage,
+});
 
 const routeTree = rootRoute.addChildren([
   homeRoute,
@@ -90,6 +114,10 @@ const routeTree = rootRoute.addChildren([
   profileRoute,
   searchRoute,
   authRoute,
+  settingsRoute,
+  historyRoute,
+  storageRoute,
+  draftsRoute,
 ]);
 
 const router = createRouter({ routeTree });
