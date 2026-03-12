@@ -26,7 +26,6 @@ actor {
     #failed;
   };
 
-  // User profile enhancements
   public type UserProfile = {
     username : Text;
     displayName : Text;
@@ -71,6 +70,16 @@ actor {
     likeCount : Nat;
   };
 
+  // Caption type for AI-generated and uploaded captions
+  public type Caption = {
+    id : Text;
+    videoId : Text;
+    startTime : Float;
+    endTime : Float;
+    text : Text;
+    language : Text;
+  };
+
   // Persistent storage
   let users = Map.empty<Principal, UserProfile>();
   let channels = Map.empty<Principal, Channel>();
@@ -80,6 +89,7 @@ actor {
   let videoDislikes = Map.empty<Text, Set.Set<Principal>>();
   let subscriptions = Map.empty<Principal, Set.Set<Principal>>();
   let followers = Map.empty<Principal, Set.Set<Principal>>();
+  let captionsByVideoId = Map.empty<Text, List.List<Caption>>();
 
   // PROFILE MANAGEMENT
 
@@ -88,7 +98,6 @@ actor {
       Runtime.trap("Unauthorized: Only users can save profiles");
     };
     users.add(caller, profile);
-
     let channel : Channel = {
       userId = caller;
       name = profile.displayName;
@@ -142,7 +151,6 @@ actor {
       createdAt = Time.now();
       status = #processing;
     };
-
     videos.add(id, newVideo);
     id;
   };
@@ -150,10 +158,7 @@ actor {
   public shared ({ caller }) func updateVideoStatus(id : Text, status : VideoStatus) : async () {
     switch (videos.get(id)) {
       case (?video) {
-        let updatedVideo = {
-          video with
-          status
-        };
+        let updatedVideo = { video with status };
         videos.add(id, updatedVideo);
       };
       case (null) { Runtime.trap("Video not found") };
@@ -185,17 +190,15 @@ actor {
       };
     };
     videoLikes.add(videoId, likes);
-
     switch (videos.get(videoId)) {
       case (?video) {
-        let likeCount = if (likes.contains(caller)) { video.likeCount + 1 } else {
-          if (video.likeCount > 0) { video.likeCount - 1 } else { 0 };
+        // Fix: use Nat.sub to avoid trapping on underflow
+        let likeCount = if (likes.contains(caller)) {
+          video.likeCount + 1
+        } else {
+          Nat.sub(video.likeCount, if (video.likeCount > 0) { 1 } else { 0 })
         };
-        let newVideo = {
-          video with
-          likeCount
-        };
-        videos.add(videoId, newVideo);
+        videos.add(videoId, { video with likeCount });
       };
       case (null) { Runtime.trap("Video not found") };
     };
@@ -240,11 +243,7 @@ actor {
   public shared ({ caller }) func likeComment(commentId : Text) : async () {
     switch (comments.get(commentId)) {
       case (?comment) {
-        let updatedComment = {
-          comment with
-          likeCount = comment.likeCount + 1;
-        };
-        comments.add(commentId, updatedComment);
+        comments.add(commentId, { comment with likeCount = comment.likeCount + 1 });
       };
       case (null) { Runtime.trap("Comment not found") };
     };
@@ -301,6 +300,28 @@ actor {
     };
   };
 
+  // CAPTION OPERATIONS
+
+  public shared ({ caller }) func saveCaptions(videoId : Text, newCaptions : [Caption]) : async () {
+    // Fix: add explicit type parameter <Caption> to List.fromArray
+    let captionList = List.fromArray<Caption>(newCaptions);
+    captionsByVideoId.add(videoId, captionList);
+  };
+
+  public query ({ caller }) func getCaptions(videoId : Text) : async [Caption] {
+    switch (captionsByVideoId.get(videoId)) {
+      case (?list) { list.toArray() };
+      case (null) { [] };
+    };
+  };
+
+  public query ({ caller }) func hasCaptions(videoId : Text) : async Bool {
+    switch (captionsByVideoId.get(videoId)) {
+      case (?list) { list.size() > 0 };
+      case (null) { false };
+    };
+  };
+
   // SEARCH
   module VideoHelpers {
     public func compareByViews(a : Video, b : Video) : Order.Order {
@@ -312,9 +333,7 @@ actor {
     let filtered = videos.values().toArray().filter(
       func(v) {
         v.title.toLower().contains(#text(searchTerm.toLower())) or v.tags.any(
-          func(tag) {
-            tag.toLower().contains(#text(searchTerm.toLower()));
-          }
+          func(tag) { tag.toLower().contains(#text(searchTerm.toLower())) }
         );
       }
     );
