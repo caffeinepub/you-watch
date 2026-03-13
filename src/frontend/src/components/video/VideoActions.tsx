@@ -1,8 +1,42 @@
 import { Button } from "@/components/ui/button";
-import type { Principal } from "@icp-sdk/core/principal";
-import { Bookmark, Share2, ThumbsDown, ThumbsUp } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Bookmark,
+  Check,
+  Copy,
+  Download,
+  Facebook,
+  Loader2,
+  MessageCircle,
+  Plus,
+  Share2,
+  ThumbsDown,
+  ThumbsUp,
+  Twitter,
+} from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import type { Video } from "../../backend";
+import { useAuthContext } from "../../context/AuthContext";
+import {
+  useAddVideoToPlaylist,
+  useCreatePlaylist,
+  useMyPlaylists,
+  useRemoveVideoFromPlaylist,
+  useVideoPlaylistIds,
+} from "../../hooks/useQueries";
 import { formatNumber } from "../../lib/formatters";
 import SubscribeButton from "../channel/SubscribeButton";
 
@@ -19,67 +53,303 @@ export default function VideoActions({
   liking,
   isOwnVideo,
 }: VideoActionsProps) {
-  const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href);
-    toast.success("Link copied to clipboard!");
+  const { isAuthenticated } = useAuthContext();
+  const [liked, setLiked] = useState(false);
+  const [disliked, setDisliked] = useState(false);
+  const [showShareSheet, setShowShareSheet] = useState(false);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState("");
+
+  const { data: playlists = [], isLoading: loadingPlaylists } =
+    useMyPlaylists();
+  const { data: savedInPlaylistIds = [] } = useVideoPlaylistIds(video.id);
+  const createPlaylist = useCreatePlaylist();
+  const addVideo = useAddVideoToPlaylist();
+  const removeVideo = useRemoveVideoFromPlaylist();
+
+  const handleLike = () => {
+    setLiked((prev) => !prev);
+    if (disliked) setDisliked(false);
+    onLike();
   };
 
+  const handleDislike = () => {
+    setDisliked((prev) => !prev);
+    if (liked) {
+      setLiked(false);
+      onLike();
+    }
+  };
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({ title: video.title, url: window.location.href });
+    } else {
+      setShowShareSheet(true);
+    }
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(window.location.href);
+    toast.success("Link copied!");
+    setShowShareSheet(false);
+  };
+
+  const handleShareTo = (platform: string) => {
+    const url = encodeURIComponent(window.location.href);
+    const title = encodeURIComponent(video.title);
+    const shareUrls: Record<string, string> = {
+      whatsapp: `https://wa.me/?text=${title}%20${url}`,
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${url}`,
+      twitter: `https://twitter.com/intent/tweet?text=${title}&url=${url}`,
+      messages: `sms:?body=${title}%20${url}`,
+    };
+    if (shareUrls[platform]) window.open(shareUrls[platform], "_blank");
+    setShowShareSheet(false);
+  };
+
+  const handleTogglePlaylist = async (playlistId: string) => {
+    if (!isAuthenticated) {
+      toast.error("Please log in to save videos.");
+      return;
+    }
+    const isSaved = savedInPlaylistIds.includes(playlistId);
+    const pl = playlists.find((p) => p.id === playlistId);
+    if (isSaved) {
+      await removeVideo.mutateAsync({ playlistId, videoId: video.id });
+      toast.success(`Removed from "${pl?.name ?? "playlist"}".`);
+    } else {
+      await addVideo.mutateAsync({ playlistId, videoId: video.id });
+      toast.success(`Saved to "${pl?.name ?? "playlist"}".`);
+    }
+  };
+
+  const handleCreatePlaylist = async () => {
+    if (!newPlaylistName.trim()) return;
+    if (!isAuthenticated) {
+      toast.error("Please log in to create playlists.");
+      return;
+    }
+    const newId = await createPlaylist.mutateAsync(newPlaylistName.trim());
+    await addVideo.mutateAsync({ playlistId: newId, videoId: video.id });
+    toast.success(`Saved to "${newPlaylistName.trim()}".`);
+    setNewPlaylistName("");
+  };
+
+  const handleDownload = () => {
+    toast.info("Download is available for Premium members only.", {
+      description: "Upgrade to Premium to enable offline playback.",
+    });
+  };
+
+  const isSaved = savedInPlaylistIds.length > 0;
+
   return (
-    <div
-      className="flex flex-wrap items-center gap-2 py-3 border-y border-border"
-      data-ocid="video_actions.section"
-    >
-      {/* Subscribe */}
-      {!isOwnVideo && <SubscribeButton channelOwnerId={video.uploaderUserId} />}
+    <>
+      <div
+        className="flex flex-wrap items-center gap-2 py-3 border-y border-border"
+        data-ocid="video_actions.section"
+      >
+        <div className="flex items-center gap-1.5 flex-1 flex-wrap">
+          {/* Like */}
+          <Button
+            variant={liked ? "default" : "outline"}
+            size="sm"
+            onClick={handleLike}
+            disabled={liking}
+            className="gap-1.5 rounded-full"
+            data-ocid="video_actions.toggle"
+          >
+            <ThumbsUp className="w-4 h-4" />
+            {video.likeCount > 0n ? formatNumber(video.likeCount) : "Like"}
+          </Button>
 
-      <div className="flex items-center gap-1.5 ml-auto">
-        {/* Like */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onLike}
-          disabled={liking}
-          className="gap-1.5 rounded-full"
-          data-ocid="video_actions.toggle"
-        >
-          <ThumbsUp className="w-4 h-4" />
-          {video.likeCount > 0n ? formatNumber(video.likeCount) : "Like"}
-        </Button>
+          {/* Dislike */}
+          <Button
+            variant={disliked ? "secondary" : "outline"}
+            size="sm"
+            onClick={handleDislike}
+            className="gap-1.5 rounded-full"
+            data-ocid="video_actions.secondary_button"
+          >
+            <ThumbsDown className="w-4 h-4" />
+            Dislike
+          </Button>
 
-        {/* Dislike */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 rounded-full"
-          data-ocid="video_actions.secondary_button"
-        >
-          <ThumbsDown className="w-4 h-4" />
-          Dislike
-        </Button>
+          {/* Share */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleShare}
+            className="gap-1.5 rounded-full"
+            data-ocid="video_actions.secondary_button"
+          >
+            <Share2 className="w-4 h-4" />
+            Share
+          </Button>
 
-        {/* Share */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleShare}
-          className="gap-1.5 rounded-full"
-          data-ocid="video_actions.secondary_button"
-        >
-          <Share2 className="w-4 h-4" />
-          Share
-        </Button>
+          {/* Save */}
+          <Button
+            variant={isSaved ? "secondary" : "outline"}
+            size="sm"
+            onClick={() => setShowSaveDialog(true)}
+            className="gap-1.5 rounded-full"
+            data-ocid="video_actions.open_modal_button"
+          >
+            <Bookmark className={`w-4 h-4 ${isSaved ? "fill-current" : ""}`} />
+            {isSaved ? "Saved" : "Save"}
+          </Button>
 
-        {/* Save */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 rounded-full hidden sm:flex"
-          data-ocid="video_actions.secondary_button"
-        >
-          <Bookmark className="w-4 h-4" />
-          Save
-        </Button>
+          {/* Download */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownload}
+            className="gap-1.5 rounded-full"
+            data-ocid="video_actions.secondary_button"
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">Download</span>
+          </Button>
+        </div>
+
+        {!isOwnVideo && (
+          <SubscribeButton channelOwnerId={video.uploaderUserId} />
+        )}
       </div>
-    </div>
+
+      {/* Share Sheet */}
+      <Sheet open={showShareSheet} onOpenChange={setShowShareSheet}>
+        <SheetContent
+          side="bottom"
+          className="rounded-t-2xl"
+          data-ocid="video_actions.sheet"
+        >
+          <SheetHeader className="mb-4">
+            <SheetTitle>Share Video</SheetTitle>
+          </SheetHeader>
+          <div className="grid grid-cols-4 gap-4 mb-6">
+            {[
+              {
+                label: "Copy Link",
+                icon: <Copy className="w-5 h-5" />,
+                bg: "bg-muted",
+                action: handleCopyLink,
+              },
+              {
+                label: "Messages",
+                icon: <MessageCircle className="w-5 h-5 text-blue-600" />,
+                bg: "bg-blue-100 dark:bg-blue-900",
+                action: () => handleShareTo("messages"),
+              },
+              {
+                label: "WhatsApp",
+                icon: (
+                  <span className="text-green-600 font-bold text-sm">WA</span>
+                ),
+                bg: "bg-green-100 dark:bg-green-900",
+                action: () => handleShareTo("whatsapp"),
+              },
+              {
+                label: "Facebook",
+                icon: <Facebook className="w-5 h-5 text-white" />,
+                bg: "bg-blue-600",
+                action: () => handleShareTo("facebook"),
+              },
+              {
+                label: "Twitter",
+                icon: <Twitter className="w-5 h-5 text-white" />,
+                bg: "bg-black",
+                action: () => handleShareTo("twitter"),
+              },
+            ].map(({ label, icon, bg, action }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={action}
+                className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-muted transition-colors"
+                data-ocid="video_actions.button"
+              >
+                <div
+                  className={`w-12 h-12 rounded-full ${bg} flex items-center justify-center`}
+                >
+                  {icon}
+                </div>
+                <span className="text-xs">{label}</span>
+              </button>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Save to Playlist Dialog */}
+      <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+        <DialogContent data-ocid="video_actions.dialog">
+          <DialogHeader>
+            <DialogTitle>Save to playlist</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-1 max-h-64 overflow-y-auto">
+            {loadingPlaylists ? (
+              <div
+                className="flex items-center justify-center py-6"
+                data-ocid="video_actions.loading_state"
+              >
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : playlists.length === 0 ? (
+              <p
+                className="text-sm text-muted-foreground text-center py-4"
+                data-ocid="video_actions.empty_state"
+              >
+                No playlists yet. Create one below.
+              </p>
+            ) : (
+              playlists.map((pl, idx) => (
+                <button
+                  key={pl.id}
+                  type="button"
+                  onClick={() => handleTogglePlaylist(pl.id)}
+                  className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg hover:bg-muted transition-colors text-left"
+                  data-ocid={`video_actions.button.${idx + 1}`}
+                >
+                  <span className="text-sm font-medium">{pl.name}</span>
+                  {savedInPlaylistIds.includes(pl.id) && (
+                    <Check className="w-4 h-4 text-primary" />
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+
+          <div className="flex gap-2 mt-2 pt-3 border-t border-border">
+            <Input
+              placeholder="New playlist name"
+              value={newPlaylistName}
+              onChange={(e) => setNewPlaylistName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCreatePlaylist()}
+              className="flex-1"
+              data-ocid="video_actions.input"
+            />
+            <Button
+              size="sm"
+              onClick={handleCreatePlaylist}
+              disabled={
+                !newPlaylistName.trim() ||
+                createPlaylist.isPending ||
+                addVideo.isPending
+              }
+              data-ocid="video_actions.primary_button"
+            >
+              {createPlaylist.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Plus className="w-4 h-4" />
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

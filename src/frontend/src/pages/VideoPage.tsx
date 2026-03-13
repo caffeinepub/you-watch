@@ -21,7 +21,10 @@ export default function VideoPage() {
   const { isAuthenticated, identity } = useAuthContext();
   const { getBlobUrl } = useStorage();
   const { data: video, isLoading } = useVideo(id);
-  const { data: channelData } = useChannel(video?.uploaderUserId ?? null);
+  const { data: channelData } = useChannel(
+    video?.uploaderUserId ?? null,
+    10_000,
+  );
   const { data: allVideos, isLoading: loadingSuggested } = useAllVideos();
   const { mutate: likeVideo, isPending: liking } = useLikeVideo();
   const [showComments, setShowComments] = useState(false);
@@ -116,9 +119,10 @@ export default function VideoPage() {
           channelName={channel?.name}
           channelAvatarBlobId={channel?.avatarBlobId}
           subscriberCount={subscriberCount}
+          channelOwnerId={video.uploaderUserId}
         />
 
-        {/* 3. Action Buttons: Subscribe, Like, Dislike, Share, Save */}
+        {/* 3. Action Buttons: Like, Dislike, Share, Save, Download | Subscribe */}
         <VideoActions
           video={video}
           onLike={handleLike}
@@ -129,16 +133,7 @@ export default function VideoPage() {
         {/* 4. Description + Tags */}
         <VideoDescription video={video} />
 
-        {/* 5. Suggested Videos - BEFORE comments */}
-        <div className="mt-4">
-          <SuggestedVideosList
-            videos={allVideos ?? []}
-            currentVideoId={video.id}
-            isLoading={loadingSuggested}
-          />
-        </div>
-
-        {/* 6. Comments - AFTER suggested videos */}
+        {/* 5. Comments */}
         <div className="mt-4">
           <CommentsPreview
             commentCount={video.commentCount}
@@ -150,6 +145,15 @@ export default function VideoPage() {
               <CommentSection videoId={video.id} />
             </div>
           )}
+        </div>
+
+        {/* 6. Suggested Videos - BELOW comments */}
+        <div className="mt-6 pb-6">
+          <SuggestedVideosList
+            videos={allVideos ?? []}
+            currentVideoId={video.id}
+            isLoading={loadingSuggested}
+          />
         </div>
       </div>
     </div>

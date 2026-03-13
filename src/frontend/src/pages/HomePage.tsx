@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { ChevronRight, Clock, Sparkles, TrendingUp } from "lucide-react";
 import { useMemo } from "react";
 import type { Video } from "../backend";
+import AIAssistantButton from "../components/common/AIAssistantButton";
 import VideoCard from "../components/video/VideoCard";
 import { useAllVideos } from "../hooks/useVideos";
 
@@ -104,6 +105,9 @@ export default function HomePage() {
           </p>
         </div>
       )}
+
+      {/* Floating AI Assistant Button */}
+      <AIAssistantButton />
     </div>
   );
 }

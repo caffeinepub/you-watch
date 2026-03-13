@@ -3,12 +3,14 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Bell, Menu, Upload, User, X } from "lucide-react";
 import { useState } from "react";
 import { useAuthContext } from "../../context/AuthContext";
+import { useNotifications } from "../../context/NotificationsContext";
 import { useStorage } from "../../hooks/useStorage";
 
 export default function TopNav() {
   const navigate = useNavigate();
   const { isAuthenticated, userProfile } = useAuthContext();
   const { getBlobUrl } = useStorage();
+  const { unreadCount } = useNotifications();
   const [searchQuery, setSearchQuery] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -65,15 +67,19 @@ export default function TopNav() {
             </Button>
           </Link>
 
-          {isAuthenticated && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="hidden sm:flex text-muted-foreground hover:text-foreground"
-            >
-              <Bell className="w-5 h-5" />
-            </Button>
-          )}
+          {/* Bell notification icon — visible on all screen sizes */}
+          <Link
+            to="/notifications"
+            data-ocid="nav.notifications_link"
+            className="relative flex items-center justify-center w-9 h-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+          >
+            <Bell className="w-5 h-5" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </Link>
 
           <Link
             to={isAuthenticated ? "/profile" : "/auth"}

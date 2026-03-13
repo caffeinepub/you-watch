@@ -50,7 +50,7 @@ export function useComments(videoId: string) {
   });
 }
 
-export function useChannel(userId: Principal | null) {
+export function useChannel(userId: Principal | null, refetchInterval?: number) {
   const { actor, isFetching } = useActor();
   return useQuery({
     queryKey: ["channel", userId?.toString()],
@@ -59,6 +59,7 @@ export function useChannel(userId: Principal | null) {
       return actor.getChannel(userId);
     },
     enabled: !!actor && !isFetching && !!userId,
+    refetchInterval: refetchInterval,
   });
 }
 
@@ -71,6 +72,22 @@ export function useIsSubscribed(channelOwnerId: Principal | null) {
       return actor.isSubscribedToChannel(channelOwnerId);
     },
     enabled: !!actor && !isFetching && !!channelOwnerId,
+  });
+}
+
+export function useSubscriberStats(channelOwnerId: Principal | null) {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["subscriberStats", channelOwnerId?.toString()],
+    queryFn: async () => {
+      if (!actor || !channelOwnerId) return null;
+      const result = await actor.getChannel(channelOwnerId);
+      if (!result) return null;
+      const [, count] = result;
+      return { total: count };
+    },
+    enabled: !!actor && !isFetching && !!channelOwnerId,
+    refetchInterval: 10_000,
   });
 }
 
@@ -166,6 +183,9 @@ export function useSubscribe() {
       qc.invalidateQueries({
         queryKey: ["channel", channelOwnerId.toString()],
       });
+      qc.invalidateQueries({
+        queryKey: ["subscriberStats", channelOwnerId.toString()],
+      });
     },
   });
 }
@@ -180,6 +200,108 @@ export function useSaveProfile() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["currentUserProfile"] });
+    },
+  });
+}
+
+// PLAYLIST HOOKS
+
+export function useMyPlaylists() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["myPlaylists"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getMyPlaylists();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function usePlaylistVideos(playlistId: string) {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["playlistVideos", playlistId],
+    queryFn: async () => {
+      if (!actor || !playlistId) return [];
+      return actor.getPlaylistVideos(playlistId);
+    },
+    enabled: !!actor && !isFetching && !!playlistId,
+  });
+}
+
+export function useVideoPlaylistIds(videoId: string) {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["videoPlaylistIds", videoId],
+    queryFn: async () => {
+      if (!actor || !videoId) return [];
+      return actor.getVideoPlaylistIds(videoId);
+    },
+    enabled: !!actor && !isFetching && !!videoId,
+  });
+}
+
+export function useCreatePlaylist() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (name: string) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.createPlaylist(name);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["myPlaylists"] });
+    },
+  });
+}
+
+export function useAddVideoToPlaylist() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      playlistId,
+      videoId,
+    }: { playlistId: string; videoId: string }) => {
+      if (!actor) throw new Error("Not connected");
+      await actor.addVideoToPlaylist(playlistId, videoId);
+    },
+    onSuccess: (_, { playlistId, videoId }) => {
+      qc.invalidateQueries({ queryKey: ["playlistVideos", playlistId] });
+      qc.invalidateQueries({ queryKey: ["videoPlaylistIds", videoId] });
+    },
+  });
+}
+
+export function useRemoveVideoFromPlaylist() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      playlistId,
+      videoId,
+    }: { playlistId: string; videoId: string }) => {
+      if (!actor) throw new Error("Not connected");
+      await actor.removeVideoFromPlaylist(playlistId, videoId);
+    },
+    onSuccess: (_, { playlistId, videoId }) => {
+      qc.invalidateQueries({ queryKey: ["playlistVideos", playlistId] });
+      qc.invalidateQueries({ queryKey: ["videoPlaylistIds", videoId] });
+    },
+  });
+}
+
+export function useDeletePlaylist() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (playlistId: string) => {
+      if (!actor) throw new Error("Not connected");
+      await actor.deletePlaylist(playlistId);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["myPlaylists"] });
     },
   });
 }

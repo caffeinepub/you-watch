@@ -70,7 +70,6 @@ actor {
     likeCount : Nat;
   };
 
-  // Caption type for AI-generated and uploaded captions
   public type Caption = {
     id : Text;
     videoId : Text;
@@ -78,6 +77,23 @@ actor {
     endTime : Float;
     text : Text;
     language : Text;
+  };
+
+  public type NotificationRecord = {
+    id : Text;
+    notifType : Text;
+    actorName : Text;
+    message : Text;
+    videoId : ?Text;
+    createdAt : Time.Time;
+    read : Bool;
+  };
+
+  public type Playlist = {
+    id : Text;
+    name : Text;
+    ownerUserId : Principal;
+    createdAt : Time.Time;
   };
 
   // Persistent storage
@@ -90,6 +106,22 @@ actor {
   let subscriptions = Map.empty<Principal, Set.Set<Principal>>();
   let followers = Map.empty<Principal, Set.Set<Principal>>();
   let captionsByVideoId = Map.empty<Text, List.List<Caption>>();
+  let notificationsByUser = Map.empty<Principal, List.List<NotificationRecord>>();
+
+  // Playlist storage
+  let playlists = Map.empty<Text, Playlist>();
+  let playlistVideoIds = Map.empty<Text, List.List<Text>>();
+  let userPlaylistIds = Map.empty<Principal, List.List<Text>>();
+
+  // Append notification; newest-first order is achieved by reversing on read
+  func addNotificationForUser(userId : Principal, notif : NotificationRecord) {
+    let existing = switch (notificationsByUser.get(userId)) {
+      case (?list) { list };
+      case (null) { List.empty<NotificationRecord>() };
+    };
+    existing.add(notif);
+    notificationsByUser.add(userId, existing);
+  };
 
   // PROFILE MANAGEMENT
 
@@ -152,6 +184,27 @@ actor {
       status = #processing;
     };
     videos.add(id, newVideo);
+
+    let uploaderName = switch (users.get(caller)) {
+      case (?profile) { profile.displayName };
+      case (null) { "A channel you follow" };
+    };
+
+    for ((subscriberId, subSet) in subscriptions.entries()) {
+      if (subSet.contains(caller) and subscriberId != caller) {
+        let notif : NotificationRecord = {
+          id = id # "-upload-" # subscriberId.toText();
+          notifType = "new_upload";
+          actorName = uploaderName;
+          message = uploaderName # " uploaded: " # title;
+          videoId = ?id;
+          createdAt = Time.now();
+          read = false;
+        };
+        addNotificationForUser(subscriberId, notif);
+      };
+    };
+
     id;
   };
 
@@ -192,13 +245,29 @@ actor {
     videoLikes.add(videoId, likes);
     switch (videos.get(videoId)) {
       case (?video) {
-        // Fix: use Nat.sub to avoid trapping on underflow
-        let likeCount = if (likes.contains(caller)) {
+        let isLiking = likes.contains(caller);
+        let likeCount = if (isLiking) {
           video.likeCount + 1
         } else {
           Nat.sub(video.likeCount, if (video.likeCount > 0) { 1 } else { 0 })
         };
         videos.add(videoId, { video with likeCount });
+        if (isLiking and video.uploaderUserId != caller) {
+          let likerName = switch (users.get(caller)) {
+            case (?profile) { profile.displayName };
+            case (null) { "Someone" };
+          };
+          let notif : NotificationRecord = {
+            id = videoId # "-like-" # caller.toText();
+            notifType = "like";
+            actorName = likerName;
+            message = likerName # " liked your video: " # video.title;
+            videoId = ?videoId;
+            createdAt = Time.now();
+            read = false;
+          };
+          addNotificationForUser(video.uploaderUserId, notif);
+        };
       };
       case (null) { Runtime.trap("Video not found") };
     };
@@ -233,6 +302,33 @@ actor {
       likeCount = 0;
     };
     comments.add(id, newComment);
+    switch (videos.get(videoId)) {
+      case (?video) {
+        if (video.uploaderUserId != caller) {
+          let commenterName = switch (users.get(caller)) {
+            case (?profile) { profile.displayName };
+            case (null) { "Someone" };
+          };
+          let notifType = if (text.contains(#text("@"))) { "mention" } else { "comment" };
+          let message = if (notifType == "mention") {
+            commenterName # " mentioned you: \"" # text # "\""
+          } else {
+            commenterName # " commented on your video: \"" # text # "\""
+          };
+          let notif : NotificationRecord = {
+            id = id # "-notif";
+            notifType;
+            actorName = commenterName;
+            message;
+            videoId = ?videoId;
+            createdAt = Time.now();
+            read = false;
+          };
+          addNotificationForUser(video.uploaderUserId, notif);
+        };
+      };
+      case (null) {};
+    };
     id;
   };
 
@@ -266,6 +362,20 @@ actor {
       };
     };
     subscriptions.add(caller, currentSubs);
+    let subscriberName = switch (users.get(caller)) {
+      case (?profile) { profile.displayName };
+      case (null) { "Someone" };
+    };
+    let notif : NotificationRecord = {
+      id = Time.now().toText() # "-sub-" # caller.toText();
+      notifType = "subscribe";
+      actorName = subscriberName;
+      message = subscriberName # " subscribed to your channel";
+      videoId = null;
+      createdAt = Time.now();
+      read = false;
+    };
+    addNotificationForUser(channelOwnerId, notif);
   };
 
   public shared ({ caller }) func unsubscribeFromChannel(channelOwnerId : Principal) : async () {
@@ -303,7 +413,6 @@ actor {
   // CAPTION OPERATIONS
 
   public shared ({ caller }) func saveCaptions(videoId : Text, newCaptions : [Caption]) : async () {
-    // Fix: add explicit type parameter <Caption> to List.fromArray
     let captionList = List.fromArray<Caption>(newCaptions);
     captionsByVideoId.add(videoId, captionList);
   };
@@ -319,6 +428,199 @@ actor {
     switch (captionsByVideoId.get(videoId)) {
       case (?list) { list.size() > 0 };
       case (null) { false };
+    };
+  };
+
+  // NOTIFICATION OPERATIONS
+
+  public query ({ caller }) func getMyNotifications() : async [NotificationRecord] {
+    switch (notificationsByUser.get(caller)) {
+      case (?list) {
+        let arr = list.toArray();
+        let result = List.empty<NotificationRecord>();
+        var i = arr.size();
+        while (i > 0) {
+          i -= 1;
+          result.add(arr[i]);
+        };
+        result.toArray();
+      };
+      case (null) { [] };
+    };
+  };
+
+  public query ({ caller }) func getUnreadNotificationCount() : async Nat {
+    switch (notificationsByUser.get(caller)) {
+      case (?list) {
+        var count = 0 : Nat;
+        for (n in list.values()) {
+          if (not n.read) { count += 1 };
+        };
+        count;
+      };
+      case (null) { 0 };
+    };
+  };
+
+  public shared ({ caller }) func markNotificationRead(id : Text) : async () {
+    switch (notificationsByUser.get(caller)) {
+      case (?list) {
+        let updated = list.map<NotificationRecord, NotificationRecord>(func(n : NotificationRecord) : NotificationRecord {
+          if (n.id == id) { { n with read = true } } else { n }
+        });
+        notificationsByUser.add(caller, updated);
+      };
+      case (null) {};
+    };
+  };
+
+  public shared ({ caller }) func markAllMyNotificationsRead() : async () {
+    switch (notificationsByUser.get(caller)) {
+      case (?list) {
+        let updated = list.map<NotificationRecord, NotificationRecord>(func(n : NotificationRecord) : NotificationRecord {
+          { n with read = true }
+        });
+        notificationsByUser.add(caller, updated);
+      };
+      case (null) {};
+    };
+  };
+
+  public shared ({ caller }) func deleteMyNotification(id : Text) : async () {
+    switch (notificationsByUser.get(caller)) {
+      case (?list) {
+        let filtered = list.filter(func(n : NotificationRecord) : Bool { n.id != id });
+        notificationsByUser.add(caller, filtered);
+      };
+      case (null) {};
+    };
+  };
+
+  // PLAYLIST OPERATIONS
+
+  public shared ({ caller }) func createPlaylist(name : Text) : async Text {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    let id = Time.now().toText() # "-" # caller.toText();
+    let playlist : Playlist = {
+      id;
+      name;
+      ownerUserId = caller;
+      createdAt = Time.now();
+    };
+    playlists.add(id, playlist);
+    let existing = switch (userPlaylistIds.get(caller)) {
+      case (?list) { list };
+      case (null) { List.empty<Text>() };
+    };
+    existing.add(id);
+    userPlaylistIds.add(caller, existing);
+    id;
+  };
+
+  public query ({ caller }) func getMyPlaylists() : async [Playlist] {
+    switch (userPlaylistIds.get(caller)) {
+      case (?ids) {
+        let result = List.empty<Playlist>();
+        for (id in ids.values()) {
+          switch (playlists.get(id)) {
+            case (?pl) { result.add(pl) };
+            case (null) {};
+          };
+        };
+        result.toArray();
+      };
+      case (null) { [] };
+    };
+  };
+
+  public shared ({ caller }) func addVideoToPlaylist(playlistId : Text, videoId : Text) : async () {
+    switch (playlists.get(playlistId)) {
+      case (?pl) {
+        if (pl.ownerUserId != caller) { Runtime.trap("Not your playlist") };
+      };
+      case (null) { Runtime.trap("Playlist not found") };
+    };
+    let existing = switch (playlistVideoIds.get(playlistId)) {
+      case (?list) { list };
+      case (null) { List.empty<Text>() };
+    };
+    // Avoid duplicates
+    let alreadyIn = existing.toArray().any(func(id : Text) : Bool { id == videoId });
+    if (not alreadyIn) {
+      existing.add(videoId);
+      playlistVideoIds.add(playlistId, existing);
+    };
+  };
+
+  public shared ({ caller }) func removeVideoFromPlaylist(playlistId : Text, videoId : Text) : async () {
+    switch (playlists.get(playlistId)) {
+      case (?pl) {
+        if (pl.ownerUserId != caller) { Runtime.trap("Not your playlist") };
+      };
+      case (null) { Runtime.trap("Playlist not found") };
+    };
+    switch (playlistVideoIds.get(playlistId)) {
+      case (?list) {
+        let filtered = list.filter(func(id : Text) : Bool { id != videoId });
+        playlistVideoIds.add(playlistId, filtered);
+      };
+      case (null) {};
+    };
+  };
+
+  public query ({ caller }) func getPlaylistVideos(playlistId : Text) : async [Video] {
+    switch (playlistVideoIds.get(playlistId)) {
+      case (?ids) {
+        let result = List.empty<Video>();
+        for (id in ids.values()) {
+          switch (videos.get(id)) {
+            case (?v) { result.add(v) };
+            case (null) {};
+          };
+        };
+        result.toArray();
+      };
+      case (null) { [] };
+    };
+  };
+
+  public query ({ caller }) func getVideoPlaylistIds(videoId : Text) : async [Text] {
+    switch (userPlaylistIds.get(caller)) {
+      case (?ids) {
+        let result = List.empty<Text>();
+        for (plId in ids.values()) {
+          switch (playlistVideoIds.get(plId)) {
+            case (?vids) {
+              if (vids.toArray().any(func(id : Text) : Bool { id == videoId })) {
+                result.add(plId);
+              };
+            };
+            case (null) {};
+          };
+        };
+        result.toArray();
+      };
+      case (null) { [] };
+    };
+  };
+
+  public shared ({ caller }) func deletePlaylist(playlistId : Text) : async () {
+    switch (playlists.get(playlistId)) {
+      case (?pl) {
+        if (pl.ownerUserId != caller) { Runtime.trap("Not your playlist") };
+      };
+      case (null) { Runtime.trap("Playlist not found") };
+    };
+    playlists.remove(playlistId);
+    playlistVideoIds.remove(playlistId);
+    switch (userPlaylistIds.get(caller)) {
+      case (?ids) {
+        let filtered = ids.filter(func(id : Text) : Bool { id != playlistId });
+        userPlaylistIds.add(caller, filtered);
+      };
+      case (null) {};
     };
   };
 

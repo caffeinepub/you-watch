@@ -19,8 +19,10 @@ export default function ChannelPage() {
     principal = null;
   }
 
-  const { data: channelData, isLoading: channelLoading } =
-    useChannel(principal);
+  const { data: channelData, isLoading: channelLoading } = useChannel(
+    principal,
+    10_000,
+  );
   const { data: allVideos = [], isLoading: videosLoading } = useAllVideos();
 
   const channelVideos = useMemo(

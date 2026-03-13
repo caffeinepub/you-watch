@@ -48,6 +48,21 @@ export interface UserProfile {
     createdAt: Time;
     avatarBlobId?: string;
 }
+export interface NotificationRecord {
+    id: string;
+    notifType: string;
+    actorName: string;
+    message: string;
+    videoId?: string;
+    createdAt: Time;
+    read: boolean;
+}
+export interface Playlist {
+    id: string;
+    name: string;
+    ownerUserId: Principal;
+    createdAt: Time;
+}
 export enum UserRole {
     admin = "admin",
     user = "user",
@@ -61,22 +76,35 @@ export enum VideoStatus {
 export interface backendInterface {
     addComment(videoId: string, text: string): Promise<string>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    deleteMyNotification(id: string): Promise<void>;
     getAllVideos(): Promise<Array<Video>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getChannel(userId: Principal): Promise<[Channel, bigint]>;
     getComments(videoId: string): Promise<Array<Comment>>;
     getLikedVideos(): Promise<Array<Video>>;
+    getMyNotifications(): Promise<Array<NotificationRecord>>;
+    getUnreadNotificationCount(): Promise<bigint>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     getVideo(id: string): Promise<Video | null>;
     isCallerAdmin(): Promise<boolean>;
     isSubscribedToChannel(channelOwnerId: Principal): Promise<boolean>;
     likeComment(commentId: string): Promise<void>;
     likeVideo(videoId: string): Promise<void>;
+    markAllMyNotificationsRead(): Promise<void>;
+    markNotificationRead(id: string): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     searchVideos(searchTerm: string): Promise<Array<Video>>;
     subscribeToChannel(channelOwnerId: Principal): Promise<void>;
     unsubscribeFromChannel(channelOwnerId: Principal): Promise<void>;
     updateVideoStatus(id: string, status: VideoStatus): Promise<void>;
     uploadVideo(title: string, description: string, tags: Array<string>, category: string, videoBlobId: string, thumbnailBlobId: string, duration: bigint): Promise<string>;
+    // Playlist operations
+    createPlaylist(name: string): Promise<string>;
+    getMyPlaylists(): Promise<Array<Playlist>>;
+    addVideoToPlaylist(playlistId: string, videoId: string): Promise<void>;
+    removeVideoFromPlaylist(playlistId: string, videoId: string): Promise<void>;
+    getPlaylistVideos(playlistId: string): Promise<Array<Video>>;
+    getVideoPlaylistIds(videoId: string): Promise<Array<string>>;
+    deletePlaylist(playlistId: string): Promise<void>;
 }

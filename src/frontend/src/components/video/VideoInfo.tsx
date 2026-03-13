@@ -2,14 +2,17 @@ import type { Principal } from "@icp-sdk/core/principal";
 import { useNavigate } from "@tanstack/react-router";
 import { Eye } from "lucide-react";
 import type { Video } from "../../backend";
+import { useAuthContext } from "../../context/AuthContext";
 import { useStorage } from "../../hooks/useStorage";
 import { formatTimeAgo, formatViewCount } from "../../lib/formatters";
+import SubscribeButton from "../channel/SubscribeButton";
 
 interface VideoInfoProps {
   video: Video;
   channelName?: string;
   channelAvatarBlobId?: string;
   subscriberCount?: bigint;
+  channelOwnerId?: Principal;
 }
 
 export default function VideoInfo({
@@ -17,9 +20,14 @@ export default function VideoInfo({
   channelName,
   channelAvatarBlobId,
   subscriberCount,
+  channelOwnerId,
 }: VideoInfoProps) {
   const { getBlobUrl } = useStorage();
   const navigate = useNavigate();
+  const { identity } = useAuthContext();
+
+  const isOwner =
+    identity?.getPrincipal().toString() === channelOwnerId?.toString();
 
   const goToChannel = () => {
     navigate({
@@ -64,35 +72,40 @@ export default function VideoInfo({
 
       {/* Channel row */}
       {channelName && (
-        <button
-          type="button"
-          onClick={goToChannel}
-          className="flex items-center gap-3 mb-3 hover:opacity-80 transition-opacity"
-        >
-          <div className="w-9 h-9 rounded-full overflow-hidden bg-muted flex-shrink-0">
-            {channelAvatarBlobId ? (
-              <img
-                src={getBlobUrl(channelAvatarBlobId)}
-                alt={channelName}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full brand-gradient flex items-center justify-center">
-                <span className="text-white text-sm font-bold">
-                  {channelName[0]?.toUpperCase()}
-                </span>
-              </div>
-            )}
-          </div>
-          <div className="text-left">
-            <p className="text-sm font-semibold">{channelName}</p>
-            {subscriberCount !== undefined && (
-              <p className="text-xs text-muted-foreground">
-                {formatViewCount(subscriberCount)} subscribers
-              </p>
-            )}
-          </div>
-        </button>
+        <div className="flex items-center gap-3 mb-3">
+          <button
+            type="button"
+            onClick={goToChannel}
+            className="flex items-center gap-3 hover:opacity-80 transition-opacity flex-1 min-w-0"
+          >
+            <div className="w-9 h-9 rounded-full overflow-hidden bg-muted flex-shrink-0">
+              {channelAvatarBlobId ? (
+                <img
+                  src={getBlobUrl(channelAvatarBlobId)}
+                  alt={channelName}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full brand-gradient flex items-center justify-center">
+                  <span className="text-white text-sm font-bold">
+                    {channelName[0]?.toUpperCase()}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-semibold">{channelName}</p>
+              {subscriberCount !== undefined && (
+                <p className="text-xs text-muted-foreground">
+                  {formatViewCount(subscriberCount)} subscribers
+                </p>
+              )}
+            </div>
+          </button>
+          {channelOwnerId && !isOwner && (
+            <SubscribeButton channelOwnerId={channelOwnerId} />
+          )}
+        </div>
       )}
     </div>
   );

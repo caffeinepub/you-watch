@@ -137,6 +137,22 @@ export interface UserProfile {
     createdAt: Time;
     avatarBlobId?: string;
 }
+
+export interface NotificationRecord {
+    id: string;
+    notifType: string;
+    actorName: string;
+    message: string;
+    videoId?: string;
+    createdAt: Time;
+    read: boolean;
+}
+export interface Playlist {
+    id: string;
+    name: string;
+    ownerUserId: Principal;
+    createdAt: Time;
+}
 export interface _CaffeineStorageRefillResult {
     success?: boolean;
     topped_up_amount?: bigint;
@@ -179,6 +195,18 @@ export interface backendInterface {
     unsubscribeFromChannel(channelOwnerId: Principal): Promise<void>;
     updateVideoStatus(id: string, status: VideoStatus): Promise<void>;
     uploadVideo(title: string, description: string, tags: Array<string>, category: string, videoBlobId: string, thumbnailBlobId: string, duration: bigint): Promise<string>;
+    deleteMyNotification(id: string): Promise<void>;
+    getMyNotifications(): Promise<Array<NotificationRecord>>;
+    getUnreadNotificationCount(): Promise<bigint>;
+    markAllMyNotificationsRead(): Promise<void>;
+    markNotificationRead(id: string): Promise<void>;
+    createPlaylist(name: string): Promise<string>;
+    getMyPlaylists(): Promise<Array<Playlist>>;
+    addVideoToPlaylist(playlistId: string, videoId: string): Promise<void>;
+    removeVideoFromPlaylist(playlistId: string, videoId: string): Promise<void>;
+    getPlaylistVideos(playlistId: string): Promise<Array<Video>>;
+    getVideoPlaylistIds(videoId: string): Promise<Array<string>>;
+    deletePlaylist(playlistId: string): Promise<void>;
 }
 import type { Channel as _Channel, Time as _Time, UserProfile as _UserProfile, UserRole as _UserRole, Video as _Video, VideoStatus as _VideoStatus, _CaffeineStorageRefillInformation as __CaffeineStorageRefillInformation, _CaffeineStorageRefillResult as __CaffeineStorageRefillResult } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
@@ -566,6 +594,123 @@ export class Backend implements backendInterface {
             const result = await this.actor.uploadVideo(arg0, arg1, arg2, arg3, arg4, arg5, arg6);
             return result;
         }
+    }
+
+    async deleteMyNotification(arg0: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.deleteMyNotification(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.deleteMyNotification(arg0);
+            return result;
+        }
+    }
+    async getMyNotifications(): Promise<Array<NotificationRecord>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getMyNotifications();
+                return result.map((r: any) => ({
+                    id: r.id,
+                    notifType: r.notifType,
+                    actorName: r.actorName,
+                    message: r.message,
+                    videoId: r.videoId.length > 0 ? r.videoId[0] : undefined,
+                    createdAt: r.createdAt,
+                    read: r.read,
+                }));
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getMyNotifications();
+            return result.map((r: any) => ({
+                id: r.id,
+                notifType: r.notifType,
+                actorName: r.actorName,
+                message: r.message,
+                videoId: r.videoId.length > 0 ? r.videoId[0] : undefined,
+                createdAt: r.createdAt,
+                read: r.read,
+            }));
+        }
+    }
+    async getUnreadNotificationCount(): Promise<bigint> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getUnreadNotificationCount();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getUnreadNotificationCount();
+            return result;
+        }
+    }
+    async markAllMyNotificationsRead(): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.markAllMyNotificationsRead();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.markAllMyNotificationsRead();
+            return result;
+        }
+    }
+    async markNotificationRead(arg0: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.markNotificationRead(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.markNotificationRead(arg0);
+            return result;
+        }
+    }
+    async createPlaylist(arg0: string): Promise<string> {
+        const result = await this.actor.createPlaylist(arg0);
+        return result;
+    }
+    async getMyPlaylists(): Promise<Array<Playlist>> {
+        const result = await this.actor.getMyPlaylists();
+        return result.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            ownerUserId: p.ownerUserId,
+            createdAt: p.createdAt,
+        }));
+    }
+    async addVideoToPlaylist(arg0: string, arg1: string): Promise<void> {
+        await this.actor.addVideoToPlaylist(arg0, arg1);
+    }
+    async removeVideoFromPlaylist(arg0: string, arg1: string): Promise<void> {
+        await this.actor.removeVideoFromPlaylist(arg0, arg1);
+    }
+    async getPlaylistVideos(arg0: string): Promise<Array<Video>> {
+        const result = await this.actor.getPlaylistVideos(arg0);
+        return from_candid_vec_n10(this._uploadFile, this._downloadFile, result);
+    }
+    async getVideoPlaylistIds(arg0: string): Promise<Array<string>> {
+        const result = await this.actor.getVideoPlaylistIds(arg0);
+        return result;
+    }
+    async deletePlaylist(arg0: string): Promise<void> {
+        await this.actor.deletePlaylist(arg0);
     }
 }
 function from_candid_Channel_n21(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Channel): Channel {

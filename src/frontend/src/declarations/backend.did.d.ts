@@ -57,6 +57,12 @@ export interface Video {
 export type VideoStatus = { 'processing' : null } |
   { 'ready' : null } |
   { 'failed' : null };
+export interface Playlist {
+  'id' : string,
+  'name' : string,
+  'ownerUserId' : Principal,
+  'createdAt' : Time,
+}
 export interface _CaffeineStorageCreateCertificateResult {
   'method' : string,
   'blob_hash' : string,
@@ -108,6 +114,18 @@ export interface _SERVICE {
     [string, string, Array<string>, string, string, string, bigint],
     string
   >,
+  'deleteMyNotification' : ActorMethod<[string], undefined>,
+  'getMyNotifications' : ActorMethod<[], Array<any>>,
+  'getUnreadNotificationCount' : ActorMethod<[], bigint>,
+  'markAllMyNotificationsRead' : ActorMethod<[], undefined>,
+  'markNotificationRead' : ActorMethod<[string], undefined>,
+  'createPlaylist' : ActorMethod<[string], string>,
+  'getMyPlaylists' : ActorMethod<[], Array<Playlist>>,
+  'addVideoToPlaylist' : ActorMethod<[string, string], undefined>,
+  'removeVideoFromPlaylist' : ActorMethod<[string, string], undefined>,
+  'getPlaylistVideos' : ActorMethod<[string], Array<Video>>,
+  'getVideoPlaylistIds' : ActorMethod<[string], Array<string>>,
+  'deletePlaylist' : ActorMethod<[string], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

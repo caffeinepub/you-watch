@@ -4,7 +4,9 @@ import { createRootRoute, createRoute } from "@tanstack/react-router";
 import Layout from "./components/layout/Layout";
 import UploadManager from "./components/upload/UploadManager";
 import { AuthProvider } from "./context/AuthContext";
+import { NotificationsProvider } from "./context/NotificationsContext";
 import { UploadProvider } from "./context/UploadContext";
+import AIAssistantPage from "./pages/AIAssistantPage";
 import AuthPage from "./pages/AuthPage";
 import ChannelPage from "./pages/ChannelPage";
 import CreatorDashboardPage from "./pages/CreatorDashboardPage";
@@ -13,6 +15,7 @@ import ExplorePage from "./pages/ExplorePage";
 import HistoryPage from "./pages/HistoryPage";
 import HomePage from "./pages/HomePage";
 import LibraryPage from "./pages/LibraryPage";
+import NotificationsPage from "./pages/NotificationsPage";
 import ProfilePage from "./pages/ProfilePage";
 import SearchPage from "./pages/SearchPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -24,11 +27,13 @@ import VideoPage from "./pages/VideoPage";
 const rootRoute = createRootRoute({
   component: () => (
     <AuthProvider>
-      <UploadProvider>
-        <Layout />
-        <UploadManager />
-        <Toaster />
-      </UploadProvider>
+      <NotificationsProvider>
+        <UploadProvider>
+          <Layout />
+          <UploadManager />
+          <Toaster />
+        </UploadProvider>
+      </NotificationsProvider>
     </AuthProvider>
   ),
 });
@@ -108,6 +113,16 @@ const creatorDashboardRoute = createRoute({
   path: "/creator-dashboard",
   component: CreatorDashboardPage,
 });
+const aiAssistantRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/ai-assistant",
+  component: AIAssistantPage,
+});
+const notificationsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/notifications",
+  component: NotificationsPage,
+});
 
 const routeTree = rootRoute.addChildren([
   homeRoute,
@@ -125,6 +140,8 @@ const routeTree = rootRoute.addChildren([
   storageRoute,
   draftsRoute,
   creatorDashboardRoute,
+  aiAssistantRoute,
+  notificationsRoute,
 ]);
 
 const router = createRouter({ routeTree });

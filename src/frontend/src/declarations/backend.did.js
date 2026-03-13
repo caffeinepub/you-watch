@@ -70,6 +70,21 @@ export const Comment = IDL.Record({
   'authorUserId' : IDL.Principal,
   'videoId' : IDL.Text,
 });
+export const Playlist = IDL.Record({
+  'id' : IDL.Text,
+  'name' : IDL.Text,
+  'ownerUserId' : IDL.Principal,
+  'createdAt' : Time,
+});
+export const NotificationRecord = IDL.Record({
+  'id' : IDL.Text,
+  'notifType' : IDL.Text,
+  'actorName' : IDL.Text,
+  'message' : IDL.Text,
+  'videoId' : IDL.Opt(IDL.Text),
+  'createdAt' : Time,
+  'read' : IDL.Bool,
+});
 
 export const idlService = IDL.Service({
   '_caffeineStorageBlobIsLive' : IDL.Func(
@@ -135,6 +150,18 @@ export const idlService = IDL.Service({
       [IDL.Text],
       [],
     ),
+  'deleteMyNotification' : IDL.Func([IDL.Text], [], []),
+  'getMyNotifications' : IDL.Func([], [IDL.Vec(NotificationRecord)], ['query']),
+  'getUnreadNotificationCount' : IDL.Func([], [IDL.Nat], ['query']),
+  'markAllMyNotificationsRead' : IDL.Func([], [], []),
+  'markNotificationRead' : IDL.Func([IDL.Text], [], []),
+  'createPlaylist' : IDL.Func([IDL.Text], [IDL.Text], []),
+  'getMyPlaylists' : IDL.Func([], [IDL.Vec(Playlist)], ['query']),
+  'addVideoToPlaylist' : IDL.Func([IDL.Text, IDL.Text], [], []),
+  'removeVideoFromPlaylist' : IDL.Func([IDL.Text, IDL.Text], [], []),
+  'getPlaylistVideos' : IDL.Func([IDL.Text], [IDL.Vec(Video)], ['query']),
+  'getVideoPlaylistIds' : IDL.Func([IDL.Text], [IDL.Vec(IDL.Text)], ['query']),
+  'deletePlaylist' : IDL.Func([IDL.Text], [], []),
 });
 
 export const idlInitArgs = [];
@@ -202,6 +229,21 @@ export const idlFactory = ({ IDL }) => {
     'authorUserId' : IDL.Principal,
     'videoId' : IDL.Text,
   });
+  const Playlist = IDL.Record({
+    'id' : IDL.Text,
+    'name' : IDL.Text,
+    'ownerUserId' : IDL.Principal,
+    'createdAt' : Time,
+  });
+  const NotificationRecord = IDL.Record({
+    'id' : IDL.Text,
+    'notifType' : IDL.Text,
+    'actorName' : IDL.Text,
+    'message' : IDL.Text,
+    'videoId' : IDL.Opt(IDL.Text),
+    'createdAt' : Time,
+    'read' : IDL.Bool,
+  });
   
   return IDL.Service({
     '_caffeineStorageBlobIsLive' : IDL.Func(
@@ -267,6 +309,18 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Text],
         [],
       ),
+    'deleteMyNotification' : IDL.Func([IDL.Text], [], []),
+    'getMyNotifications' : IDL.Func([], [IDL.Vec(NotificationRecord)], ['query']),
+    'getUnreadNotificationCount' : IDL.Func([], [IDL.Nat], ['query']),
+    'markAllMyNotificationsRead' : IDL.Func([], [], []),
+    'markNotificationRead' : IDL.Func([IDL.Text], [], []),
+    'createPlaylist' : IDL.Func([IDL.Text], [IDL.Text], []),
+    'getMyPlaylists' : IDL.Func([], [IDL.Vec(Playlist)], ['query']),
+    'addVideoToPlaylist' : IDL.Func([IDL.Text, IDL.Text], [], []),
+    'removeVideoFromPlaylist' : IDL.Func([IDL.Text, IDL.Text], [], []),
+    'getPlaylistVideos' : IDL.Func([IDL.Text], [IDL.Vec(Video)], ['query']),
+    'getVideoPlaylistIds' : IDL.Func([IDL.Text], [IDL.Vec(IDL.Text)], ['query']),
+    'deletePlaylist' : IDL.Func([IDL.Text], [], []),
   });
 };
 

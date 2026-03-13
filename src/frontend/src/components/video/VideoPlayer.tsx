@@ -870,6 +870,8 @@ export default function VideoPlayer({ src, poster }: VideoPlayerProps) {
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={() => setDuration(videoRef.current?.duration ?? 0)}
         preload="metadata"
+        controls={false}
+        playsInline
       />
 
       {/* Caption overlay */}
