@@ -18,6 +18,8 @@ import {
   RotateCw,
   Search,
   Settings,
+  SkipBack,
+  SkipForward,
   SlidersHorizontal,
   Sparkles,
   Subtitles,
@@ -382,6 +384,8 @@ interface VideoPlayerProps {
   startTime?: number;
   onTimeUpdate?: (currentTime: number, duration: number) => void;
   onEnded?: () => void;
+  onPrev?: () => void;
+  onNext?: () => void;
 }
 
 type DoubleTapSide = "left" | "right" | null;
@@ -405,6 +409,8 @@ export default function VideoPlayer({
   startTime,
   onTimeUpdate,
   onEnded,
+  onPrev,
+  onNext,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -413,7 +419,9 @@ export default function VideoPlayer({
 
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  // biome-ignore lint/correctness/noUnusedVariables: kept for settings panel
   const [volume, setVolume] = useState(1);
+  // biome-ignore lint/correctness/noUnusedVariables: kept for settings panel
   const [muted, setMuted] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
@@ -569,6 +577,7 @@ export default function VideoPlayer({
     v.currentTime = pct * v.duration;
   }, []);
 
+  // biome-ignore lint/correctness/noUnusedVariables: kept for settings panel
   const handleVolumeChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const v = videoRef.current;
@@ -581,6 +590,7 @@ export default function VideoPlayer({
     [],
   );
 
+  // biome-ignore lint/correctness/noUnusedVariables: kept for settings panel
   const handleToggleMute = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
@@ -605,7 +615,7 @@ export default function VideoPlayer({
     if (controlsTimer.current) clearTimeout(controlsTimer.current);
     controlsTimer.current = setTimeout(() => {
       if (playingRef.current) setShowControls(false);
-    }, 5000);
+    }, 3000);
   }, []);
 
   const showDoubleTapAnimation = useCallback((side: "left" | "right") => {
@@ -952,189 +962,188 @@ export default function VideoPlayer({
       {/* Controls overlay */}
       {!lockScreen && (
         <div
-          className={`absolute inset-0 flex flex-col justify-end transition-opacity duration-300 ${
+          className={`absolute inset-0 flex flex-col justify-between transition-opacity duration-300 ${
             showControls ? "opacity-100" : "opacity-0 pointer-events-none"
           }`}
           style={{
             background:
-              "linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 50%)",
+              "linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.85) 100%)",
           }}
           data-controls="true"
         >
-          {/* Seek bar */}
-          <div
-            ref={progressRef}
-            className="relative h-1 mx-4 mb-2 bg-white/25 rounded-full cursor-pointer group/bar"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleSeek(e);
-            }}
-            onKeyDown={(e) => e.key === "Enter" && handleSeek(e as any)}
-            role="slider"
-            aria-label="Video progress"
-            aria-valuenow={progress}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            tabIndex={0}
-          >
-            <div
-              className="absolute inset-y-0 left-0 bg-white/30 rounded-full"
-              style={{ width: `${buffered}%` }}
-            />
-            <div
-              className="absolute inset-y-0 left-0 bg-primary rounded-full transition-all"
-              style={{ width: `${progress}%` }}
-            />
-            <div
-              className="absolute top-1/2 w-3.5 h-3.5 bg-white rounded-full shadow opacity-0 group-hover/bar:opacity-100 transition-opacity"
-              style={{
-                left: `${progress}%`,
-                transform: "translateX(-50%) translateY(-50%)",
-              }}
-            />
-          </div>
-
-          {/* Bottom controls row */}
+          {/* Top bar */}
           {/* biome-ignore lint/a11y/useKeyWithClickEvents: stopPropagation only, buttons inside handle keyboard */}
           <div
-            className="flex items-center gap-2 px-3 pb-3"
+            className="flex items-center justify-between px-3 pt-3"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Play/Pause */}
+            {/* Back button */}
+            <button
+              type="button"
+              onClick={() => window.history.back()}
+              className="text-white hover:scale-110 transition-transform p-1"
+              aria-label="Back"
+              data-ocid="player.button"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+
+            {/* Top-right: Cast, CC, Settings */}
+            <div className="flex items-center gap-1">
+              {/* Cast */}
+              <button
+                type="button"
+                className="text-white/70 hover:text-white transition-colors p-1"
+                aria-label="Cast"
+                title="Cast"
+              >
+                <Wifi className="w-4 h-4" />
+              </button>
+
+              {/* CC Button */}
+              <button
+                type="button"
+                className={`transition-colors p-1 ${
+                  captionMode !== "off"
+                    ? "text-primary"
+                    : "text-white/70 hover:text-white"
+                }`}
+                aria-label="Captions"
+                title="Captions"
+                data-ocid="player.cc_button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowCCMenu(true);
+                  setCCMenuView("main");
+                }}
+              >
+                <Subtitles className="w-4 h-4" />
+              </button>
+
+              {/* Settings */}
+              <button
+                type="button"
+                className="text-white/70 hover:text-white transition-colors p-1"
+                aria-label="Settings"
+                title="Settings"
+                data-ocid="player.open_modal_button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowSettings(true);
+                  setSettingsView("main");
+                }}
+              >
+                <Settings
+                  className={`w-4 h-4 transition-transform duration-300 ${
+                    showSettings ? "rotate-45" : ""
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* Center: Previous / Play/Pause / Next */}
+          {/* biome-ignore lint/a11y/useKeyWithClickEvents: stopPropagation only, buttons inside handle keyboard */}
+          <div
+            className="flex items-center justify-center gap-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="text-white hover:scale-110 transition-transform p-2"
+              onClick={onPrev}
+              disabled={!onPrev}
+              aria-label="Previous"
+              data-ocid="player.secondary_button"
+            >
+              <SkipBack className="w-10 h-10" fill="white" />
+            </button>
+
             <button
               type="button"
               onClick={handlePlayPause}
-              className="text-white hover:scale-110 transition-transform p-1"
+              className="text-white hover:scale-110 transition-transform p-2"
               data-ocid="player.toggle"
               aria-label={playing ? "Pause" : "Play"}
             >
               {playing ? (
-                <Pause className="w-5 h-5" fill="white" />
+                <Pause className="w-12 h-12" fill="white" />
               ) : (
-                <Play className="w-5 h-5" fill="white" />
+                <Play className="w-12 h-12" fill="white" />
               )}
             </button>
 
-            {/* Rewind 10s */}
             <button
               type="button"
-              onClick={() => handleSkip(-10)}
-              className="text-white hover:scale-110 transition-transform p-1"
+              className="text-white hover:scale-110 transition-transform p-2"
+              onClick={onNext}
+              disabled={!onNext}
+              aria-label="Next"
               data-ocid="player.secondary_button"
-              aria-label="Rewind 10 seconds"
             >
-              <RotateCcw className="w-4 h-4" />
+              <SkipForward className="w-10 h-10" fill="white" />
             </button>
+          </div>
 
-            {/* Forward 10s */}
-            <button
-              type="button"
-              onClick={() => handleSkip(10)}
-              className="text-white hover:scale-110 transition-transform p-1"
-              data-ocid="player.secondary_button"
-              aria-label="Forward 10 seconds"
+          {/* Bottom: seek bar + time/fullscreen */}
+          {/* biome-ignore lint/a11y/useKeyWithClickEvents: stopPropagation only, buttons inside handle keyboard */}
+          <div
+            className="flex flex-col px-3 pb-3 gap-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Seek bar */}
+            <div
+              ref={progressRef}
+              className="relative h-1 bg-white/25 rounded-full cursor-pointer group/bar"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSeek(e);
+              }}
+              onKeyDown={(e) => e.key === "Enter" && handleSeek(e as any)}
+              role="slider"
+              aria-label="Video progress"
+              aria-valuenow={progress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              tabIndex={0}
             >
-              <RotateCw className="w-4 h-4" />
-            </button>
-
-            {/* Volume */}
-            <div className="flex items-center gap-1 group/vol">
-              <button
-                type="button"
-                onClick={handleToggleMute}
-                className="text-white p-1"
-                aria-label={muted ? "Unmute" : "Mute"}
-              >
-                {muted || volume === 0 ? (
-                  <VolumeX className="w-4 h-4" />
-                ) : (
-                  <Volume2 className="w-4 h-4" />
-                )}
-              </button>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={muted ? 0 : volume}
-                onChange={handleVolumeChange}
-                className="w-14 opacity-0 group-hover/vol:opacity-100 transition-opacity accent-primary"
-                aria-label="Volume"
+              <div
+                className="absolute inset-y-0 left-0 bg-white/30 rounded-full"
+                style={{ width: `${buffered}%` }}
+              />
+              <div
+                className="absolute inset-y-0 left-0 bg-primary rounded-full transition-all"
+                style={{ width: `${progress}%` }}
+              />
+              <div
+                className="absolute top-1/2 w-3.5 h-3.5 bg-white rounded-full shadow opacity-0 group-hover/bar:opacity-100 transition-opacity"
+                style={{
+                  left: `${progress}%`,
+                  transform: "translateX(-50%) translateY(-50%)",
+                }}
               />
             </div>
 
-            {/* Time */}
-            <span className="text-white text-xs tabular-nums">
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </span>
+            {/* Bottom row: time + fullscreen */}
+            <div className="flex items-center justify-between">
+              <span className="text-white text-xs tabular-nums">
+                {formatTime(currentTime)} / {formatTime(duration)}
+              </span>
 
-            {/* Spacer */}
-            <div className="flex-1" />
-
-            {/* CC Button */}
-            <button
-              type="button"
-              className={`transition-colors p-1 ${
-                captionMode !== "off"
-                  ? "text-primary"
-                  : "text-white/70 hover:text-white"
-              }`}
-              aria-label="Captions"
-              title="Captions"
-              data-ocid="player.cc_button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowCCMenu(true);
-                setCCMenuView("main");
-              }}
-            >
-              <Subtitles className="w-4 h-4" />
-            </button>
-
-            {/* Cast */}
-            <button
-              type="button"
-              className="text-white/70 hover:text-white transition-colors p-1"
-              aria-label="Cast"
-              title="Cast"
-            >
-              <Wifi className="w-4 h-4" />
-            </button>
-
-            {/* Settings */}
-            <button
-              type="button"
-              className="text-white/70 hover:text-white transition-colors p-1"
-              aria-label="Settings"
-              title="Settings"
-              data-ocid="player.open_modal_button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowSettings(true);
-                setSettingsView("main");
-              }}
-            >
-              <Settings
-                className={`w-4 h-4 transition-transform duration-300 ${
-                  showSettings ? "rotate-45" : ""
-                }`}
-              />
-            </button>
-
-            {/* Fullscreen */}
-            <button
-              type="button"
-              onClick={handleFullscreen}
-              className="text-white hover:scale-110 transition-transform p-1"
-              data-ocid="player.toggle"
-              aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
-            >
-              {fullscreen ? (
-                <Minimize className="w-4 h-4" />
-              ) : (
-                <Maximize className="w-4 h-4" />
-              )}
-            </button>
+              <button
+                type="button"
+                onClick={handleFullscreen}
+                className="text-white hover:scale-110 transition-transform p-1"
+                data-ocid="player.toggle"
+                aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+              >
+                {fullscreen ? (
+                  <Minimize className="w-4 h-4" />
+                ) : (
+                  <Maximize className="w-4 h-4" />
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

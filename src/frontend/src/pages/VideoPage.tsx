@@ -85,8 +85,11 @@ export default function VideoPage() {
   const savedProgress = getProgress(id);
   const startTime = savedProgress?.currentTime ?? 0;
 
-  // Next video for autoplay
+  // Next video for autoplay / prev-next navigation
+  const currentIndex = (allVideos ?? []).findIndex((v) => v.id === id);
   const nextVideo = allVideos?.find((v) => v.id !== id) ?? null;
+  const prevVideo =
+    currentIndex > 0 ? (allVideos?.[currentIndex - 1] ?? null) : null;
   const nextThumb = nextVideo?.thumbnailBlobId
     ? getBlobUrl(nextVideo.thumbnailBlobId)
     : "";
@@ -156,6 +159,22 @@ export default function VideoPage() {
           startTime={startTime}
           onTimeUpdate={handleTimeUpdate}
           onEnded={handleEnded}
+          onPrev={
+            prevVideo
+              ? () => {
+                  clearProgress(id);
+                  navigate({ to: "/video/$id", params: { id: prevVideo.id } });
+                }
+              : undefined
+          }
+          onNext={
+            nextVideo
+              ? () => {
+                  clearProgress(id);
+                  navigate({ to: "/video/$id", params: { id: nextVideo.id } });
+                }
+              : undefined
+          }
         />
 
         {/* 2. Video Info: title, channel, views, upload time */}
