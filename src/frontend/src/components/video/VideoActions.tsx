@@ -38,7 +38,6 @@ import {
   useVideoPlaylistIds,
 } from "../../hooks/useQueries";
 import { formatNumber } from "../../lib/formatters";
-import SubscribeButton from "../channel/SubscribeButton";
 
 interface VideoActionsProps {
   video: Video;
@@ -51,7 +50,6 @@ export default function VideoActions({
   video,
   onLike,
   liking,
-  isOwnVideo,
 }: VideoActionsProps) {
   const { isAuthenticated } = useAuthContext();
   const [liked, setLiked] = useState(false);
@@ -157,7 +155,11 @@ export default function VideoActions({
             size="sm"
             onClick={handleLike}
             disabled={liking}
-            className="gap-1.5 rounded-full"
+            className={`gap-1.5 rounded-full ${
+              liked
+                ? "bg-red-600 hover:bg-red-700 text-white border-red-600"
+                : ""
+            }`}
             data-ocid="video_actions.toggle"
           >
             <ThumbsUp className="w-4 h-4" />
@@ -212,10 +214,6 @@ export default function VideoActions({
             <span className="hidden sm:inline">Download</span>
           </Button>
         </div>
-
-        {!isOwnVideo && (
-          <SubscribeButton channelOwnerId={video.uploaderUserId} />
-        )}
       </div>
 
       {/* Share Sheet */}

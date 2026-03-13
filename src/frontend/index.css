@@ -88,6 +88,13 @@
   .hide-scrollbar::-webkit-scrollbar {
     display: none;
   }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
   .video-gradient {
     background: linear-gradient(
       135deg,

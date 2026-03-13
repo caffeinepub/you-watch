@@ -63,16 +63,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isAuthenticated, actor, isFetching, refreshProfile]);
 
+  // Only call login when the user is not already authenticated.
+  // Do NOT auto-logout on "already authenticated" — that would break persistence.
   const handleLogin = useCallback(async () => {
-    try {
-      await login();
-    } catch (err: any) {
-      if (err?.message === "User is already authenticated") {
-        await clear();
-        setTimeout(() => login(), 300);
-      }
-    }
-  }, [login, clear]);
+    login();
+  }, [login]);
 
   const handleLogout = useCallback(async () => {
     await clear();

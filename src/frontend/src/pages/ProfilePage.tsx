@@ -2,9 +2,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
+  Camera,
   FileVideo,
   HardDrive,
   History,
@@ -12,11 +19,14 @@ import {
   Loader2,
   Lock,
   LogOut,
+  Pencil,
   Save,
   Settings,
+  Trash2,
+  Upload,
   User,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAuthContext } from "../context/AuthContext";
 import { useSaveProfile } from "../hooks/useQueries";
@@ -27,12 +37,16 @@ export default function ProfilePage() {
   const { isAuthenticated, identity, userProfile, logout, refreshProfile } =
     useAuthContext();
   const { mutate: saveProfile, isPending } = useSaveProfile();
-  const { getBlobUrl } = useStorage();
+  const { uploadBlob, getBlobUrl } = useStorage();
 
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [edited, setEdited] = useState(false);
+  const [avatarSheetOpen, setAvatarSheetOpen] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (userProfile) {
@@ -64,11 +78,11 @@ export default function ProfilePage() {
     );
   }
 
-  const avatarUrl = userProfile?.avatarBlobId
+  const storedAvatarUrl = userProfile?.avatarBlobId
     ? getBlobUrl(userProfile.avatarBlobId)
     : "";
+  const avatarUrl = localAvatarUrl ?? storedAvatarUrl;
   const principalText = identity?.getPrincipal().toString() ?? "";
-  const shortPrincipal = `${principalText.slice(0, 10)}...${principalText.slice(-4)}`;
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,6 +110,76 @@ export default function ProfilePage() {
     );
   };
 
+  const handleAvatarFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+    // Preview immediately
+    const objectUrl = URL.createObjectURL(file);
+    setLocalAvatarUrl(objectUrl);
+    setAvatarSheetOpen(false);
+    setAvatarUploading(true);
+    try {
+      const blobUrl = await uploadBlob(file);
+      const newProfile = {
+        username: userProfile?.username ?? username.trim(),
+        displayName: userProfile?.displayName ?? displayName.trim(),
+        bio: userProfile?.bio ?? bio.trim(),
+        avatarBlobId: blobUrl,
+        bannerBlobId: userProfile?.bannerBlobId,
+        createdAt: userProfile?.createdAt ?? BigInt(Date.now() * 1_000_000),
+      };
+      await new Promise<void>((resolve, reject) => {
+        saveProfile(newProfile, {
+          onSuccess: () => resolve(),
+          onError: () => reject(new Error("save failed")),
+        });
+      });
+      await refreshProfile();
+      setLocalAvatarUrl(null);
+      toast.success("Profile photo updated!");
+    } catch {
+      setLocalAvatarUrl(null);
+      toast.error("Failed to upload photo");
+    } finally {
+      setAvatarUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleDeleteAvatar = async () => {
+    setAvatarSheetOpen(false);
+    setAvatarUploading(true);
+    try {
+      const newProfile = {
+        username: userProfile?.username ?? username.trim(),
+        displayName: userProfile?.displayName ?? displayName.trim(),
+        bio: userProfile?.bio ?? bio.trim(),
+        avatarBlobId: undefined,
+        bannerBlobId: userProfile?.bannerBlobId,
+        createdAt: userProfile?.createdAt ?? BigInt(Date.now() * 1_000_000),
+      };
+      await new Promise<void>((resolve, reject) => {
+        saveProfile(newProfile, {
+          onSuccess: () => resolve(),
+          onError: () => reject(new Error("save failed")),
+        });
+      });
+      await refreshProfile();
+      setLocalAvatarUrl(null);
+      toast.success("Profile photo removed");
+    } catch {
+      toast.error("Failed to remove photo");
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
   return (
     <div className="px-4 py-6 max-w-lg mx-auto animate-fade-in">
       <div className="flex items-center gap-3 mb-8">
@@ -104,31 +188,157 @@ export default function ProfilePage() {
       </div>
 
       <div className="flex flex-col items-center mb-8">
-        <div className="w-24 h-24 rounded-full overflow-hidden bg-muted mb-3">
-          {avatarUrl ? (
-            <img
-              src={avatarUrl}
-              alt={displayName}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full brand-gradient flex items-center justify-center">
-              <User className="w-10 h-10 text-white" />
+        {/* Tappable avatar */}
+        <button
+          type="button"
+          className="relative w-24 h-24 rounded-full group focus:outline-none mb-3"
+          onClick={() => setAvatarSheetOpen(true)}
+          data-ocid="profile.open_modal_button"
+          aria-label="Change profile photo"
+        >
+          <div className="w-24 h-24 rounded-full overflow-hidden bg-muted">
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={displayName}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full brand-gradient flex items-center justify-center">
+                <User className="w-10 h-10 text-white" />
+              </div>
+            )}
+          </div>
+          {/* Edit overlay */}
+          <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            {avatarUploading ? (
+              <Loader2 className="w-6 h-6 text-white animate-spin" />
+            ) : (
+              <Camera className="w-6 h-6 text-white" />
+            )}
+          </div>
+          {/* Small pencil badge */}
+          {!avatarUploading && (
+            <div className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-primary border-2 border-background flex items-center justify-center">
+              <Pencil className="w-3.5 h-3.5 text-white" />
             </div>
           )}
-        </div>
-        <p className="text-xs text-muted-foreground font-mono">
-          {shortPrincipal}
-        </p>
+        </button>
+
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleAvatarFileChange}
+          data-ocid="profile.upload_button"
+        />
+
+        {userProfile?.displayName && (
+          <p className="font-semibold text-base">{userProfile.displayName}</p>
+        )}
+        {userProfile?.username && (
+          <p className="text-sm text-muted-foreground">
+            @{userProfile.username}
+          </p>
+        )}
+        {userProfile?.bio && (
+          <p className="text-sm text-center text-muted-foreground mt-1 max-w-xs">
+            {userProfile.bio}
+          </p>
+        )}
         <Link
           to="/channel/$userId"
           params={{ userId: principalText }}
-          className="text-xs text-primary hover:underline mt-1"
+          className="text-xs text-primary hover:underline mt-2"
           data-ocid="profile.link"
         >
           View Channel
         </Link>
       </div>
+
+      {/* Avatar options sheet */}
+      <Sheet open={avatarSheetOpen} onOpenChange={setAvatarSheetOpen}>
+        <SheetContent
+          side="bottom"
+          className="rounded-t-2xl pb-8"
+          data-ocid="profile.sheet"
+        >
+          <SheetHeader className="mb-4">
+            <SheetTitle>Profile Photo</SheetTitle>
+          </SheetHeader>
+          <div className="flex flex-col gap-2">
+            {/* Upload / Change */}
+            <button
+              type="button"
+              className="flex items-center gap-4 px-4 py-3.5 rounded-xl hover:bg-muted/60 transition-colors text-left w-full"
+              onClick={() => {
+                setAvatarSheetOpen(false);
+                setTimeout(() => fileInputRef.current?.click(), 150);
+              }}
+              data-ocid="profile.upload_button"
+            >
+              {avatarUrl ? (
+                <>
+                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                    <Pencil className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">Change image</p>
+                    <p className="text-xs text-muted-foreground">
+                      Replace your current photo
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                    <Upload className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">Upload image</p>
+                    <p className="text-xs text-muted-foreground">
+                      Choose a photo from your device
+                    </p>
+                  </div>
+                </>
+              )}
+            </button>
+
+            {/* Delete — only shown if avatar exists */}
+            {avatarUrl && (
+              <button
+                type="button"
+                className="flex items-center gap-4 px-4 py-3.5 rounded-xl hover:bg-destructive/10 transition-colors text-left w-full"
+                onClick={handleDeleteAvatar}
+                data-ocid="profile.delete_button"
+              >
+                <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
+                  <Trash2 className="w-5 h-5 text-destructive" />
+                </div>
+                <div>
+                  <p className="font-medium text-sm text-destructive">
+                    Delete image
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Remove your profile photo
+                  </p>
+                </div>
+              </button>
+            )}
+
+            <Button
+              variant="outline"
+              className="mt-2 rounded-xl"
+              onClick={() => setAvatarSheetOpen(false)}
+              data-ocid="profile.cancel_button"
+            >
+              Cancel
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <form onSubmit={handleSave} className="space-y-5 mb-8">
         <div>

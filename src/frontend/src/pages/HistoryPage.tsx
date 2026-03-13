@@ -1,4 +1,3 @@
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -7,12 +6,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   History,
+  MessageCircle,
   Pause,
   Play,
   Search,
@@ -39,111 +37,6 @@ type CommentItem = {
 };
 type LikeItem = { id: string; title: string; channel: string; likedAt: string };
 
-const MOCK_WATCH: WatchItem[] = [
-  {
-    id: "1",
-    title: "Building a Full-Stack App with React & Node.js",
-    channel: "CodeWithMosh",
-    watchedAt: "2 hours ago",
-    thumb: "",
-  },
-  {
-    id: "2",
-    title: "The Art of Drone Photography",
-    channel: "SkyFrames",
-    watchedAt: "Yesterday",
-    thumb: "",
-  },
-  {
-    id: "3",
-    title: "World's Hottest Chili Pepper Challenge",
-    channel: "FoodDareTV",
-    watchedAt: "2 days ago",
-    thumb: "",
-  },
-  {
-    id: "4",
-    title: "How Microchips Are Made",
-    channel: "Tech Insider",
-    watchedAt: "3 days ago",
-    thumb: "",
-  },
-  {
-    id: "5",
-    title: "Ultimate Tokyo Street Food Tour 2025",
-    channel: "WanderEats",
-    watchedAt: "5 days ago",
-    thumb: "",
-  },
-  {
-    id: "6",
-    title: "Learn Piano in 30 Days – Day 1",
-    channel: "PianoMaster",
-    watchedAt: "1 week ago",
-    thumb: "",
-  },
-];
-
-const MOCK_SEARCH: SearchItem[] = [
-  {
-    id: "1",
-    query: "how to edit 4K video on laptop",
-    searchedAt: "1 hour ago",
-  },
-  { id: "2", query: "best vlog cameras 2025", searchedAt: "3 hours ago" },
-  { id: "3", query: "react hooks tutorial", searchedAt: "Yesterday" },
-  { id: "4", query: "lo-fi music for studying", searchedAt: "2 days ago" },
-  { id: "5", query: "drone footage africa wildlife", searchedAt: "4 days ago" },
-];
-
-const MOCK_COMMENTS: CommentItem[] = [
-  {
-    id: "1",
-    text: "This is exactly what I needed, thank you!",
-    videoTitle: "Building a Full-Stack App",
-    commentedAt: "5 hours ago",
-  },
-  {
-    id: "2",
-    text: "Great drone shots at 4:32, how did you do that?",
-    videoTitle: "The Art of Drone Photography",
-    commentedAt: "2 days ago",
-  },
-  {
-    id: "3",
-    text: "Subscribed! Can't wait for the next episode.",
-    videoTitle: "Learn Piano in 30 Days – Day 1",
-    commentedAt: "1 week ago",
-  },
-];
-
-const MOCK_LIKES: LikeItem[] = [
-  {
-    id: "1",
-    title: "Ultimate Tokyo Street Food Tour 2025",
-    channel: "WanderEats",
-    likedAt: "Yesterday",
-  },
-  {
-    id: "2",
-    title: "How Microchips Are Made",
-    channel: "Tech Insider",
-    likedAt: "3 days ago",
-  },
-  {
-    id: "3",
-    title: "Building a Full-Stack App with React & Node.js",
-    channel: "CodeWithMosh",
-    likedAt: "5 days ago",
-  },
-  {
-    id: "4",
-    title: "World's Hottest Chili Pepper Challenge",
-    channel: "FoodDareTV",
-    likedAt: "1 week ago",
-  },
-];
-
 export default function HistoryPage() {
   const [watchHistory, setWatchHistory] = useState<WatchItem[]>([]);
   const [searchHistory, setSearchHistory] = useState<SearchItem[]>([]);
@@ -159,10 +52,10 @@ export default function HistoryPage() {
     const sh = localStorage.getItem("yw_search_history");
     const ch = localStorage.getItem("yw_comment_history");
     const lh = localStorage.getItem("yw_like_history");
-    setWatchHistory(wh ? JSON.parse(wh) : MOCK_WATCH);
-    setSearchHistory(sh ? JSON.parse(sh) : MOCK_SEARCH);
-    setCommentHistory(ch ? JSON.parse(ch) : MOCK_COMMENTS);
-    setLikeHistory(lh ? JSON.parse(lh) : MOCK_LIKES);
+    setWatchHistory(wh ? JSON.parse(wh) : []);
+    setSearchHistory(sh ? JSON.parse(sh) : []);
+    setCommentHistory(ch ? JSON.parse(ch) : []);
+    setLikeHistory(lh ? JSON.parse(lh) : []);
     const paused = localStorage.getItem("yw_watch_paused");
     if (paused) setWatchPaused(paused === "true");
   }, []);
@@ -316,7 +209,7 @@ export default function HistoryPage() {
           </div>
           {watchPaused && (
             <div className="mb-4 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-sm">
-              Watch history is paused. New videos won't be saved.
+              Watch history is paused. New videos won&apos;t be saved.
             </div>
           )}
           {watchHistory.length === 0 ? (
@@ -424,6 +317,7 @@ export default function HistoryPage() {
               className="text-center py-12 text-muted-foreground"
               data-ocid="history.empty_state"
             >
+              <MessageCircle className="w-10 h-10 mx-auto mb-3 opacity-30" />
               <p>No comment history</p>
             </div>
           ) : (

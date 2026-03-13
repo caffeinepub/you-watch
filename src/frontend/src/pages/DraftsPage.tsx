@@ -21,30 +21,6 @@ type Draft = {
   status: "Draft";
 };
 
-const MOCK_DRAFTS: Draft[] = [
-  {
-    id: "1",
-    title: "Day in My Life – Tokyo Vlog",
-    lastEdited: "2 hours ago",
-    progress: 45,
-    status: "Draft",
-  },
-  {
-    id: "2",
-    title: "How I Built My Home Studio for $500",
-    lastEdited: "Yesterday",
-    progress: 80,
-    status: "Draft",
-  },
-  {
-    id: "3",
-    title: "5 JavaScript Tips You Didn't Know",
-    lastEdited: "3 days ago",
-    progress: 10,
-    status: "Draft",
-  },
-];
-
 export default function DraftsPage() {
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -58,11 +34,10 @@ export default function DraftsPage() {
       try {
         setDrafts(JSON.parse(stored));
       } catch {
-        setDrafts(MOCK_DRAFTS);
+        setDrafts([]);
       }
     } else {
-      setDrafts(MOCK_DRAFTS);
-      localStorage.setItem("yw_drafts", JSON.stringify(MOCK_DRAFTS));
+      setDrafts([]);
     }
   }, []);
 

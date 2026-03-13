@@ -1,6 +1,8 @@
 import { Toaster } from "@/components/ui/sonner";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { createRootRoute, createRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import SplashScreen from "./components/SplashScreen";
 import Layout from "./components/layout/Layout";
 import UploadManager from "./components/upload/UploadManager";
 import { AuthProvider } from "./context/AuthContext";
@@ -15,6 +17,7 @@ import ExplorePage from "./pages/ExplorePage";
 import HistoryPage from "./pages/HistoryPage";
 import HomePage from "./pages/HomePage";
 import LibraryPage from "./pages/LibraryPage";
+import MessagesPage from "./pages/MessagesPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import ProfilePage from "./pages/ProfilePage";
 import SearchPage from "./pages/SearchPage";
@@ -123,6 +126,11 @@ const notificationsRoute = createRoute({
   path: "/notifications",
   component: NotificationsPage,
 });
+const messagesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/messages",
+  component: MessagesPage,
+});
 
 const routeTree = rootRoute.addChildren([
   homeRoute,
@@ -142,6 +150,7 @@ const routeTree = rootRoute.addChildren([
   creatorDashboardRoute,
   aiAssistantRoute,
   notificationsRoute,
+  messagesRoute,
 ]);
 
 const router = createRouter({ routeTree });
@@ -153,5 +162,12 @@ declare module "@tanstack/react-router" {
 }
 
 export default function App() {
-  return <RouterProvider router={router} />;
+  const [showSplash, setShowSplash] = useState(true);
+
+  return (
+    <>
+      {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
+      <RouterProvider router={router} />
+    </>
+  );
 }

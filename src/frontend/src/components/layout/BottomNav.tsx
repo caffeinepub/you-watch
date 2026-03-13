@@ -1,12 +1,30 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Bell, BookMarked, Compass, Home, Plus } from "lucide-react";
+import {
+  BookMarked,
+  Compass,
+  Home,
+  MessageCircle,
+  Plus,
+  Users,
+} from "lucide-react";
 
 const tabs = [
-  { to: "/", icon: Home, label: "Home", ocid: "nav.tab" },
-  { to: "/explore", icon: Compass, label: "Explore", ocid: "nav.tab" },
-  { to: "/upload", icon: Plus, label: "Upload", ocid: "nav.tab" },
-  { to: "/subscriptions", icon: Bell, label: "Subs", ocid: "nav.tab" },
-  { to: "/library", icon: BookMarked, label: "Library", ocid: "nav.tab" },
+  { to: "/", icon: Home, label: "Home", ocid: "nav.home.tab" },
+  { to: "/explore", icon: Compass, label: "Explore", ocid: "nav.explore.tab" },
+  { to: "/upload", icon: Plus, label: "Upload", ocid: "nav.upload.tab" },
+  { to: "/subscriptions", icon: Users, label: "Subs", ocid: "nav.subs.tab" },
+  {
+    to: "/messages",
+    icon: MessageCircle,
+    label: "Messages",
+    ocid: "nav.messages.tab",
+  },
+  {
+    to: "/library",
+    icon: BookMarked,
+    label: "Library",
+    ocid: "nav.library.tab",
+  },
 ];
 
 export default function BottomNav() {
@@ -14,7 +32,10 @@ export default function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-background/95 backdrop-blur border-t border-border">
-      <div className="flex items-center justify-around h-16">
+      <div
+        className="flex items-center overflow-x-auto scrollbar-hide snap-x snap-mandatory h-16"
+        style={{ touchAction: "pan-x" }}
+      >
         {tabs.map(({ to, icon: Icon, label, ocid }) => {
           const isActive =
             to === "/" ? location === "/" : location.startsWith(to);
@@ -22,7 +43,7 @@ export default function BottomNav() {
             <Link
               key={to}
               to={to}
-              className="flex flex-col items-center gap-0.5 flex-1 py-2 transition-colors"
+              className="flex flex-col items-center gap-0.5 snap-center shrink-0 min-w-[64px] py-2 px-1 transition-colors"
               data-ocid={ocid}
             >
               <div
