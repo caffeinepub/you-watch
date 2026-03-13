@@ -379,6 +379,9 @@ interface VideoPlayerProps {
   src: string;
   poster?: string;
   title?: string;
+  startTime?: number;
+  onTimeUpdate?: (currentTime: number, duration: number) => void;
+  onEnded?: () => void;
 }
 
 type DoubleTapSide = "left" | "right" | null;
@@ -396,7 +399,13 @@ const SLEEP_TIMER_OPTIONS: (number | null)[] = [10, 20, 30, 45, 60, null];
 const speedLabel = (s: number) => (s === 1 ? "Normal" : `${s}x`);
 const sleepLabel = (v: number | null) => (v === null ? "Off" : `${v} min`);
 
-export default function VideoPlayer({ src, poster }: VideoPlayerProps) {
+export default function VideoPlayer({
+  src,
+  poster,
+  startTime,
+  onTimeUpdate,
+  onEnded,
+}: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
@@ -548,7 +557,8 @@ export default function VideoPlayer({ src, poster }: VideoPlayerProps) {
     if (v.buffered.length > 0) {
       setBuffered((v.buffered.end(v.buffered.length - 1) / v.duration) * 100);
     }
-  }, []);
+    onTimeUpdate?.(v.currentTime, v.duration);
+  }, [onTimeUpdate]);
 
   const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const v = videoRef.current;
@@ -868,10 +878,18 @@ export default function VideoPlayer({ src, poster }: VideoPlayerProps) {
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
         onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={() => setDuration(videoRef.current?.duration ?? 0)}
+        onLoadedMetadata={() => {
+          const v = videoRef.current;
+          if (!v) return;
+          setDuration(v.duration ?? 0);
+          if (startTime && startTime > 0) {
+            v.currentTime = startTime;
+          }
+        }}
         preload="metadata"
         controls={false}
         playsInline
+        onEnded={onEnded}
       />
 
       {/* Caption overlay */}

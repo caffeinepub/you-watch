@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import CommentSection from "../components/comments/CommentSection";
+import AutoplayOverlay from "../components/video/AutoplayOverlay";
 import CommentsPreview from "../components/video/CommentsPreview";
 import SuggestedVideosList from "../components/video/SuggestedVideosList";
 import VideoActions from "../components/video/VideoActions";
@@ -14,6 +15,11 @@ import { useAuthContext } from "../context/AuthContext";
 import { useChannel } from "../hooks/useChannel";
 import { useStorage } from "../hooks/useStorage";
 import { useAllVideos, useLikeVideo, useVideo } from "../hooks/useVideos";
+import {
+  clearProgress,
+  getProgress,
+  saveProgress,
+} from "../hooks/useWatchProgress";
 
 export default function VideoPage() {
   const { id } = useParams({ from: "/video/$id" });
@@ -28,6 +34,7 @@ export default function VideoPage() {
   const { data: allVideos, isLoading: loadingSuggested } = useAllVideos();
   const { mutate: likeVideo, isPending: liking } = useLikeVideo();
   const [showComments, setShowComments] = useState(false);
+  const [showAutoplay, setShowAutoplay] = useState(false);
 
   // ── Loading State ────────────────────────────────────────────────────────────
   if (isLoading) {
@@ -74,6 +81,16 @@ export default function VideoPage() {
   const isOwnVideo =
     identity?.getPrincipal().toString() === video.uploaderUserId.toString();
 
+  // Continue Watching: get saved start time
+  const savedProgress = getProgress(id);
+  const startTime = savedProgress?.currentTime ?? 0;
+
+  // Next video for autoplay
+  const nextVideo = allVideos?.find((v) => v.id !== id) ?? null;
+  const nextThumb = nextVideo?.thumbnailBlobId
+    ? getBlobUrl(nextVideo.thumbnailBlobId)
+    : "";
+
   const handleLike = () => {
     if (!isAuthenticated) {
       navigate({ to: "/auth" });
@@ -88,6 +105,27 @@ export default function VideoPage() {
     } else {
       navigate({ to: "/" });
     }
+  };
+
+  const handleTimeUpdate = (ct: number, dur: number) => {
+    if (dur > 0 && ct > 5) {
+      saveProgress(id, ct, dur);
+    }
+  };
+
+  const handleEnded = () => {
+    clearProgress(id);
+    setShowAutoplay(true);
+  };
+
+  const handleAutoplayConfirm = () => {
+    if (!nextVideo) return;
+    setShowAutoplay(false);
+    navigate({ to: "/video/$id", params: { id: nextVideo.id } });
+  };
+
+  const handleAutoplayCancel = () => {
+    setShowAutoplay(false);
   };
 
   return (
@@ -111,7 +149,14 @@ export default function VideoPage() {
       {/* Main single-column content */}
       <div className="space-y-0">
         {/* 1. Video Player */}
-        <VideoPlayer src={videoUrl} poster={thumbUrl} title={video.title} />
+        <VideoPlayer
+          src={videoUrl}
+          poster={thumbUrl}
+          title={video.title}
+          startTime={startTime}
+          onTimeUpdate={handleTimeUpdate}
+          onEnded={handleEnded}
+        />
 
         {/* 2. Video Info: title, channel, views, upload time */}
         <VideoInfo
@@ -156,6 +201,16 @@ export default function VideoPage() {
           />
         </div>
       </div>
+
+      {/* Autoplay Next Video Overlay */}
+      {showAutoplay && nextVideo && (
+        <AutoplayOverlay
+          nextVideo={nextVideo}
+          thumbnailUrl={nextThumb}
+          onCancel={handleAutoplayCancel}
+          onPlayNow={handleAutoplayConfirm}
+        />
+      )}
     </div>
   );
 }

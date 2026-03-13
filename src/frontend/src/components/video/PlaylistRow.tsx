@@ -70,7 +70,16 @@ function PlaylistRowSkeleton() {
   );
 }
 
-export function PlaylistRow({ playlist }: { playlist: Playlist }) {
+interface PlaylistRowProps {
+  playlist: Playlist;
+  /** When true, hides the built-in header (parent renders it instead) */
+  hideHeader?: boolean;
+}
+
+export function PlaylistRow({
+  playlist,
+  hideHeader = false,
+}: PlaylistRowProps) {
   const { data: videos = [], isLoading } = usePlaylistVideos(playlist.id);
 
   if (isLoading) return <PlaylistRowSkeleton />;
@@ -78,7 +87,9 @@ export function PlaylistRow({ playlist }: { playlist: Playlist }) {
 
   return (
     <div className="mb-8" data-ocid="playlist_row.section">
-      <h2 className="font-semibold text-base mb-3">{playlist.name}</h2>
+      {!hideHeader && (
+        <h2 className="font-semibold text-base mb-3">{playlist.name}</h2>
+      )}
       <ScrollArea className="w-full" type="scroll">
         <div className="flex gap-3 pb-3">
           {videos.map((video) => (
