@@ -4,6 +4,7 @@ import { ChevronRight, Clock, Play, Sparkles, TrendingUp } from "lucide-react";
 import { useMemo } from "react";
 import type { Video } from "../backend";
 import AIAssistantButton from "../components/common/AIAssistantButton";
+import StoriesRow from "../components/stories/StoriesRow";
 import VideoCard from "../components/video/VideoCard";
 import { useStorage } from "../hooks/useStorage";
 import { useAllVideos } from "../hooks/useVideos";
@@ -59,7 +60,6 @@ function ContinueWatchingCard({
       className="flex-shrink-0 w-[280px] group"
       data-ocid="home.continue_watching.card"
     >
-      {/* Thumbnail with progress bar */}
       <div className="relative rounded-xl overflow-hidden bg-muted aspect-video mb-2">
         {thumbnailUrl ? (
           <img
@@ -72,7 +72,6 @@ function ContinueWatchingCard({
             <Play className="w-8 h-8 text-muted-foreground" />
           </div>
         )}
-        {/* Progress bar at bottom */}
         <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
           <div
             className="h-full bg-red-500 transition-all"
@@ -80,11 +79,9 @@ function ContinueWatchingCard({
           />
         </div>
       </div>
-      {/* Title */}
       <p className="text-sm font-semibold line-clamp-2 leading-snug mb-1">
         {video.title}
       </p>
-      {/* Resume time in red */}
       <p className="text-xs font-semibold text-red-500 flex items-center gap-1">
         <Play className="w-3 h-3 fill-red-500" />
         Resume at {formatResumeTime(currentTime)}
@@ -102,14 +99,12 @@ const SECTIONS = [
 export default function HomePage() {
   const { data: allVideos = [], isLoading } = useAllVideos();
 
-  // Continue Watching
   const continueWatching = useMemo(() => {
     const progressEntries = getAllProgress();
     return progressEntries
       .map((entry) => {
         const video = allVideos.find((v) => v.id === entry.videoId);
         if (!video) return null;
-        // Only show if: watched > 5s and not within 5s of the end
         if (entry.currentTime <= 5) return null;
         if (entry.duration > 0 && entry.currentTime >= entry.duration - 5)
           return null;
@@ -140,7 +135,7 @@ export default function HomePage() {
 
   return (
     <div className="px-4 py-6 max-w-screen-2xl mx-auto animate-fade-in">
-      <div className="relative rounded-2xl overflow-hidden mb-8 h-36 md:h-52 brand-gradient flex items-center px-8">
+      <div className="relative rounded-2xl overflow-hidden mb-6 h-36 md:h-52 brand-gradient flex items-center px-8">
         <div className="relative z-10">
           <h1 className="font-display font-black text-3xl md:text-5xl text-white tracking-tight">
             YOU <span className="opacity-80">WATCH</span>
@@ -152,6 +147,11 @@ export default function HomePage() {
         <div className="absolute right-8 top-1/2 -translate-y-1/2 w-32 h-32 rounded-full bg-white/5 blur-2xl" />
         <div className="absolute right-16 top-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-white/10" />
       </div>
+
+      {/* Stories row */}
+      <section className="mb-6" data-ocid="home.stories.section">
+        <StoriesRow />
+      </section>
 
       {/* Continue Watching */}
       {continueWatching.length > 0 && (
@@ -210,7 +210,6 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Floating AI Assistant Button */}
       <AIAssistantButton />
     </div>
   );

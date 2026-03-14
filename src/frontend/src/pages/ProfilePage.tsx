@@ -9,6 +9,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Camera,
@@ -34,6 +35,7 @@ import { useStorage } from "../hooks/useStorage";
 
 export default function ProfilePage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { isAuthenticated, identity, userProfile, logout, refreshProfile } =
     useAuthContext();
   const { mutate: saveProfile, isPending } = useSaveProfile();
@@ -47,6 +49,9 @@ export default function ProfilePage() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // principalText must be computed before any conditional returns
+  const principalText = identity?.getPrincipal().toString() ?? "";
 
   useEffect(() => {
     if (userProfile) {
@@ -82,7 +87,6 @@ export default function ProfilePage() {
     ? getBlobUrl(userProfile.avatarBlobId)
     : "";
   const avatarUrl = localAvatarUrl ?? storedAvatarUrl;
-  const principalText = identity?.getPrincipal().toString() ?? "";
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,6 +145,14 @@ export default function ProfilePage() {
         });
       });
       await refreshProfile();
+      // Sync avatar instantly across comments, channel page, and any
+      // surface that reads the user's profile or channel query.
+      if (principalText) {
+        queryClient.invalidateQueries({
+          queryKey: ["userProfile", principalText],
+        });
+        queryClient.invalidateQueries({ queryKey: ["channel", principalText] });
+      }
       setLocalAvatarUrl(null);
       toast.success("Profile photo updated!");
     } catch {
@@ -171,6 +183,13 @@ export default function ProfilePage() {
         });
       });
       await refreshProfile();
+      // Sync avatar removal instantly across comments, channel page, etc.
+      if (principalText) {
+        queryClient.invalidateQueries({
+          queryKey: ["userProfile", principalText],
+        });
+        queryClient.invalidateQueries({ queryKey: ["channel", principalText] });
+      }
       setLocalAvatarUrl(null);
       toast.success("Profile photo removed");
     } catch {

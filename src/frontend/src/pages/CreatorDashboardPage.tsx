@@ -27,6 +27,7 @@ import {
 import { motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import UserAvatar from "../components/common/UserAvatar";
 import { useAuthContext } from "../context/AuthContext";
 import { useAllVideos, useChannel } from "../hooks/useQueries";
 
@@ -97,7 +98,7 @@ const itemVariant = {
 };
 
 export default function CreatorDashboardPage() {
-  const { isAuthenticated, identity } = useAuthContext();
+  const { isAuthenticated, identity, userProfile } = useAuthContext();
   const currentPrincipal = identity?.getPrincipal() ?? null;
 
   const { data: allVideos = [], isLoading: videosLoading } = useAllVideos();
@@ -193,6 +194,13 @@ export default function CreatorDashboardPage() {
           <p className="text-xs text-muted-foreground mt-0.5">
             Your channel at a glance
           </p>
+        </div>
+        <div className="ml-auto">
+          <UserAvatar
+            name={userProfile?.displayName ?? userProfile?.username ?? ""}
+            blobId={userProfile?.avatarBlobId ?? undefined}
+            size="md"
+          />
         </div>
       </div>
 

@@ -12,6 +12,7 @@ import AIAssistantPage from "./pages/AIAssistantPage";
 import AuthPage from "./pages/AuthPage";
 import ChannelPage from "./pages/ChannelPage";
 import CreatorDashboardPage from "./pages/CreatorDashboardPage";
+import CreatorStudioPage from "./pages/CreatorStudioPage";
 import DraftsPage from "./pages/DraftsPage";
 import ExplorePage from "./pages/ExplorePage";
 import HistoryPage from "./pages/HistoryPage";
@@ -116,6 +117,11 @@ const creatorDashboardRoute = createRoute({
   path: "/creator-dashboard",
   component: CreatorDashboardPage,
 });
+const creatorStudioRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/creator-studio",
+  component: CreatorStudioPage,
+});
 const aiAssistantRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/ai-assistant",
@@ -148,6 +154,7 @@ const routeTree = rootRoute.addChildren([
   storageRoute,
   draftsRoute,
   creatorDashboardRoute,
+  creatorStudioRoute,
   aiAssistantRoute,
   notificationsRoute,
   messagesRoute,

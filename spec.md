@@ -1,31 +1,27 @@
-# YOU WATCH — Creator Dashboard
+# YOU WATCH
 
 ## Current State
-The app has ProfilePage with links to /settings, /history, /storage, /drafts. There is no /creator-dashboard route. App.tsx manages all routes.
+Stories are fully implemented with a viewer modal, reply bar, and view counts. The Messages page supports text, emojis, and video link previews. Story replies send a message with a story preview card to the chat.
 
 ## Requested Changes (Diff)
 
 ### Add
-- New page: `/creator-dashboard` (CreatorDashboardPage component)
-- Stats cards section: Total Views, Total Subscribers, Total Videos Uploaded, Total Likes — loaded from backend after login
-- Video Performance list: thumbnail, title, views, likes, comments, upload date, with Edit/Delete/View Analytics quick actions per video
-- Recent Activity section: new subscribers, new comments, likes on videos — loaded from backend after login
-- "Creator Dashboard" link/button in ProfilePage's Settings & More section
-- Route registration in App.tsx
+- A Share button in the StoryViewerModal (visible to all viewers, including the owner)
+- A ShareStorySheet component — a bottom sheet that lists the user's existing conversations and lets them pick who to share the story with
+- When a story is shared, a message is sent to the selected conversation containing a story-share card (story preview thumbnail/text + "@username shared a story" label)
+- A `story_share` message type in the conversation system so the chat renders a distinct story-share card (different from a reply card)
 
 ### Modify
-- `ProfilePage.tsx` — add Creator Dashboard entry in the Settings & More links list
-- `App.tsx` — add creatorDashboardRoute
+- `StoriesRow.tsx`: add Share button to `StoryViewerModal`, add `ShareStorySheet` component
+- `MessagesPage.tsx`: render `story_share` message type as a clickable story card
+- `useConversations` hook: support optional `storyShare` payload on `sendMessage`
 
 ### Remove
 - Nothing
 
 ## Implementation Plan
-1. Create `src/frontend/src/pages/CreatorDashboardPage.tsx` with:
-   - Auth guard (redirect to /auth if not logged in)
-   - Stats cards (Total Views, Subscribers, Videos, Likes) loaded client-side from mock/backend data after mount
-   - Video performance list with thumbnail, title, views, likes, comments, date, and action buttons (edit, delete, analytics)
-   - Recent activity feed (subscribers, comments, likes)
-   - All data fetched only after authentication, never at build time
-2. Update `App.tsx` to add the /creator-dashboard route
-3. Update `ProfilePage.tsx` to add Creator Dashboard link in the menu
+1. Update `useConversations` hook to accept a `storyShare` payload (similar to `storyPreview`)
+2. Add `ShareStorySheet` inside `StoriesRow.tsx` — shows conversations list + send button
+3. Add Share (forward) icon button to `StoryViewerModal` header area
+4. In `MessagesPage.tsx` render `storyShare` payload as a story card bubble
+5. Validate and deploy

@@ -270,6 +270,7 @@ export function useAddVideoToPlaylist() {
     onSuccess: (_, { playlistId, videoId }) => {
       qc.invalidateQueries({ queryKey: ["playlistVideos", playlistId] });
       qc.invalidateQueries({ queryKey: ["videoPlaylistIds", videoId] });
+      qc.invalidateQueries({ queryKey: ["myPlaylists"] });
     },
   });
 }

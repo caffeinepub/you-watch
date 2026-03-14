@@ -13,6 +13,8 @@ export default function TopNav() {
   const { unreadCount } = useNotifications();
   const [searchQuery, setSearchQuery] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [desktopFocused, setDesktopFocused] = useState(false);
+  const [mobileFocused, setMobileFocused] = useState(false);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,13 +45,18 @@ export default function TopNav() {
           onSubmit={handleSearch}
           className="flex-1 max-w-xl mx-auto hidden sm:flex"
         >
-          <div className="relative w-full">
+          <div
+            className={`relative w-full phosphor-border${desktopFocused ? " phosphor-active" : ""}`}
+          >
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setDesktopFocused(true)}
+              onBlur={() => setDesktopFocused(false)}
               placeholder="Search videos..."
-              className="w-full bg-muted border border-border rounded-full px-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="w-full bg-background rounded-full px-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none relative"
+              style={{ zIndex: 1 }}
               data-ocid="nav.search_input"
             />
           </div>
@@ -115,14 +122,21 @@ export default function TopNav() {
       {menuOpen && (
         <div className="sm:hidden px-4 pb-3">
           <form onSubmit={handleSearch}>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search videos..."
-              className="w-full bg-muted border border-border rounded-full px-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-              data-ocid="nav.search_input"
-            />
+            <div
+              className={`phosphor-border${mobileFocused ? " phosphor-active" : ""}`}
+            >
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setMobileFocused(true)}
+                onBlur={() => setMobileFocused(false)}
+                placeholder="Search videos..."
+                className="w-full bg-background rounded-full px-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none relative"
+                style={{ zIndex: 1 }}
+                data-ocid="nav.search_input"
+              />
+            </div>
           </form>
         </div>
       )}

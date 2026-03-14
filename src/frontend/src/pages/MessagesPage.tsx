@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,92 +9,75 @@ import {
   ArrowLeft,
   Check,
   CheckCheck,
+  Forward,
   MessageCircle,
   Search,
   Send,
   SmilePlus,
-  UserPlus,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import EmojiPicker from "../components/chat/EmojiPicker";
 import VideoLinkPreview, {
   hasVideoLink,
 } from "../components/chat/VideoLinkPreview";
-
-interface Conversation {
-  id: string;
-  username: string;
-  initials: string;
-  lastMessage: string;
-  time: string;
-  unread: number;
-  online: boolean;
-}
-
-interface Message {
-  id: string;
-  senderId: string;
-  text: string;
-  timestamp: string;
-  status: "sent" | "delivered";
-}
+import { useAuthContext } from "../context/AuthContext";
+import { useConversations } from "../hooks/useConversations";
+import { useStorage } from "../hooks/useStorage";
 
 interface SearchUser {
   id: string;
   username: string;
   initials: string;
-  followed: boolean;
 }
 
-function searchUsers(query: string): SearchUser[] {
+function makeInitials(username: string): string {
+  return (
+    username
+      .split(/[_\s]+/)
+      .map((w) => w[0]?.toUpperCase() ?? "")
+      .slice(0, 2)
+      .join("") || username.slice(0, 2).toUpperCase()
+  );
+}
+
+function searchUsersLocal(query: string): SearchUser[] {
   if (!query.trim()) return [];
   const q = query.toLowerCase().trim();
-  const pool: SearchUser[] = [
+  return [
     {
-      id: "u1",
-      username: `${q}_official`,
-      initials: q.slice(0, 2).toUpperCase(),
-      followed: false,
+      id: `search-${q}-1`,
+      username: `${q}_user`,
+      initials: makeInitials(`${q}_user`),
     },
-    {
-      id: "u2",
-      username: `${q}tv`,
-      initials: `${(q[0] ?? "U").toUpperCase()}T`,
-      followed: false,
-    },
-    {
-      id: "u3",
-      username: `real_${q}`,
-      initials: `R${(q[0] ?? "U").toUpperCase()}`,
-      followed: true,
-    },
-    {
-      id: "u4",
-      username: `${q}123`,
-      initials: q.slice(0, 2).toUpperCase(),
-      followed: false,
-    },
-  ];
-  return pool.filter((u) => u.username.includes(q));
+  ].filter((u) => u.username.toLowerCase().includes(q));
 }
 
 export default function MessagesPage() {
   const navigate = useNavigate();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const { userProfile } = useAuthContext();
+  const { getBlobUrl } = useStorage();
+  const { conversations, messages, getOrCreateConversation, sendMessage } =
+    useConversations();
+
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [inputText, setInputText] = useState("");
   const [showEmoji, setShowEmoji] = useState(false);
   const isRestricted = false;
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
-  const [followedUsers, setFollowedUsers] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const activeConv = conversations.find((c) => c.id === activeConvId) ?? null;
   const activeMessages = activeConvId ? (messages[activeConvId] ?? []) : [];
   const videoLinkInInput = hasVideoLink(inputText) ? inputText : null;
+
+  const myAvatarUrl = userProfile?.avatarBlobId
+    ? getBlobUrl(userProfile.avatarBlobId)
+    : "";
+  const myInitial = (userProfile?.displayName ?? userProfile?.username ?? "U")
+    .charAt(0)
+    .toUpperCase();
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll triggered by message list changes
   useEffect(() => {
@@ -103,101 +86,23 @@ export default function MessagesPage() {
 
   useEffect(() => {
     if (searchQuery.trim()) {
-      setSearchResults(searchUsers(searchQuery));
+      setSearchResults(searchUsersLocal(searchQuery));
     } else {
       setSearchResults([]);
     }
   }, [searchQuery]);
 
-  function makeInitials(username: string): string {
-    return (
-      username
-        .split(/[_\s]+/)
-        .map((w) => w[0]?.toUpperCase() ?? "")
-        .slice(0, 2)
-        .join("") || username.slice(0, 2).toUpperCase()
-    );
-  }
-
   function handleOpenUserChat(user: SearchUser) {
-    const existing = conversations.find(
-      (c) => c.username.toLowerCase() === user.username.toLowerCase(),
-    );
-    if (existing) {
-      setActiveConvId(existing.id);
-      setSearchQuery("");
-      return;
-    }
-
-    const newConv: Conversation = {
-      id: `conv-${Date.now()}`,
-      username: user.username,
-      initials: user.initials || makeInitials(user.username),
-      lastMessage: "",
-      time: "now",
-      unread: 0,
-      online: false,
-    };
-
-    setConversations((prev) => [newConv, ...prev]);
-    setMessages((prev) => ({ ...prev, [newConv.id]: [] }));
-    setActiveConvId(newConv.id);
+    const conv = getOrCreateConversation(user.id, user.username);
+    setActiveConvId(conv.id);
     setSearchQuery("");
-  }
-
-  function handleToggleFollow(userId: string, e: React.MouseEvent) {
-    e.stopPropagation();
-    setFollowedUsers((prev) => {
-      const next = new Set(prev);
-      if (next.has(userId)) next.delete(userId);
-      else next.add(userId);
-      return next;
-    });
-    setSearchResults((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, followed: !u.followed } : u)),
-    );
   }
 
   function handleSend() {
     if (!inputText.trim() || !activeConvId || isRestricted) return;
-
-    const now = new Date();
-    const timestamp = now.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-    const newMsg: Message = {
-      id: `m${Date.now()}`,
-      senderId: "me",
-      text: inputText.trim(),
-      timestamp,
-      status: "sent",
-    };
-
-    setMessages((prev) => ({
-      ...prev,
-      [activeConvId]: [...(prev[activeConvId] ?? []), newMsg],
-    }));
-
-    setConversations((prev) =>
-      prev.map((c) =>
-        c.id === activeConvId
-          ? { ...c, lastMessage: inputText.trim(), time: "now" }
-          : c,
-      ),
-    );
-
+    sendMessage(activeConvId, inputText.trim());
     setInputText("");
     setShowEmoji(false);
-
-    setTimeout(() => {
-      setMessages((prev) => ({
-        ...prev,
-        [activeConvId]: (prev[activeConvId] ?? []).map((m) =>
-          m.id === newMsg.id ? { ...m, status: "delivered" } : m,
-        ),
-      }));
-    }, 800);
   }
 
   function handleEmojiSelect(emoji: string) {
@@ -220,12 +125,10 @@ export default function MessagesPage() {
           activeConvId ? "hidden md:flex" : "flex"
         }`}
       >
-        {/* Header */}
         <div className="px-4 py-3 border-b border-border shrink-0">
           <h1 className="text-lg font-semibold tracking-tight mb-3">
             Messages
           </h1>
-          {/* Search Bar */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <Input
@@ -238,7 +141,6 @@ export default function MessagesPage() {
           </div>
         </div>
 
-        {/* Search Results */}
         {showSearch ? (
           <ScrollArea className="flex-1">
             {searchResults.length === 0 ? (
@@ -247,49 +149,33 @@ export default function MessagesPage() {
                 data-ocid="messages.search.empty_state"
               >
                 <Search className="w-8 h-8 opacity-30" />
-                <p>No users found for &quot;{searchQuery}&quot;</p>
+                <p>No users found</p>
               </div>
             ) : (
               <div className="py-1">
-                {searchResults.map((user, idx) => {
-                  const isFollowed =
-                    user.followed || followedUsers.has(user.id);
-                  return (
-                    <button
-                      key={user.id}
-                      type="button"
-                      onClick={() => handleOpenUserChat(user)}
-                      data-ocid={`messages.search_result.item.${idx + 1}`}
-                      className="w-full flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
-                    >
-                      <Avatar className="w-10 h-10 shrink-0">
-                        <AvatarFallback className="text-xs font-bold bg-primary/20 text-primary">
-                          {user.initials}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0 text-left">
-                        <p className="font-medium text-sm truncate">
-                          @{user.username}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Tap to message
-                        </p>
-                      </div>
-                      {!isFollowed && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 px-2 text-xs shrink-0 gap-1"
-                          onClick={(e) => handleToggleFollow(user.id, e)}
-                          data-ocid={`messages.follow_button.${idx + 1}`}
-                        >
-                          <UserPlus className="w-3 h-3" />
-                          Follow
-                        </Button>
-                      )}
-                    </button>
-                  );
-                })}
+                {searchResults.map((user, idx) => (
+                  <button
+                    key={user.id}
+                    type="button"
+                    onClick={() => handleOpenUserChat(user)}
+                    data-ocid={`messages.search_result.item.${idx + 1}`}
+                    className="w-full flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
+                  >
+                    <Avatar className="w-10 h-10 shrink-0">
+                      <AvatarFallback className="text-xs font-bold bg-primary/20 text-primary">
+                        {user.initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0 text-left">
+                      <p className="font-medium text-sm truncate">
+                        @{user.username}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Tap to message
+                      </p>
+                    </div>
+                  </button>
+                ))}
               </div>
             )}
           </ScrollArea>
@@ -384,16 +270,13 @@ export default function MessagesPage() {
             </div>
           </div>
 
-          {/* Restriction Banner */}
           {isRestricted && (
             <div
               data-ocid="messages.restriction_banner"
               className="flex items-center gap-2 px-4 py-2.5 bg-yellow-500/10 border-b border-yellow-500/30 text-yellow-600 dark:text-yellow-400 text-sm"
             >
               <AlertTriangle className="w-4 h-4 shrink-0" />
-              <span>
-                Messaging temporarily restricted. Please follow community rules.
-              </span>
+              <span>Messaging temporarily restricted.</span>
             </div>
           )}
 
@@ -408,33 +291,146 @@ export default function MessagesPage() {
               )}
               {activeMessages.map((msg) => {
                 const isMine = msg.senderId === "me";
-                const isVideoMsg = hasVideoLink(msg.text);
+                const isVideoMsg = hasVideoLink(msg.text) && !msg.storyShare;
                 return (
                   <div
                     key={msg.id}
-                    className={`flex ${isMine ? "justify-end" : "justify-start"}`}
+                    className={`flex items-end gap-1.5 ${
+                      isMine ? "justify-end" : "justify-start"
+                    }`}
                   >
+                    {isMine && (
+                      <div className="order-last shrink-0 self-end">
+                        <Avatar className="w-7 h-7">
+                          {myAvatarUrl ? (
+                            <AvatarImage
+                              src={myAvatarUrl}
+                              alt="Me"
+                              className="object-cover"
+                            />
+                          ) : null}
+                          <AvatarFallback className="text-[10px] font-bold bg-primary/20 text-primary">
+                            {myInitial}
+                          </AvatarFallback>
+                        </Avatar>
+                      </div>
+                    )}
+                    {!isMine && (
+                      <div className="shrink-0 self-end">
+                        <Avatar className="w-7 h-7">
+                          <AvatarFallback className="text-[10px] font-bold bg-muted text-muted-foreground">
+                            {activeConv.initials.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                      </div>
+                    )}
+
                     <div
-                      className={`flex flex-col gap-1 max-w-[75%] ${isMine ? "items-end" : "items-start"}`}
+                      className={`flex flex-col gap-1 max-w-[70%] ${isMine ? "items-end" : "items-start"}`}
                     >
-                      {isVideoMsg ? (
-                        <div className="w-64">
-                          <VideoLinkPreview
-                            url={msg.text}
-                            onClick={() => handleVideoLinkClick(msg.text)}
-                          />
-                        </div>
-                      ) : (
-                        <div
-                          className={`px-3 py-2 rounded-2xl text-sm leading-relaxed ${
-                            isMine
-                              ? "bg-primary text-primary-foreground rounded-br-sm"
-                              : "bg-muted text-foreground rounded-bl-sm"
-                          }`}
-                        >
-                          {msg.text}
+                      {/* Story reply preview */}
+                      {msg.storyPreview && (
+                        <div className="flex items-center gap-2 bg-muted/60 border border-border rounded-xl px-3 py-2 mb-1 max-w-full">
+                          {msg.storyPreview.type === "image" &&
+                          msg.storyPreview.mediaDataUrl ? (
+                            <img
+                              src={msg.storyPreview.mediaDataUrl}
+                              alt="story"
+                              className="w-8 h-8 rounded-md object-cover flex-shrink-0"
+                            />
+                          ) : (
+                            <div
+                              className="w-8 h-8 rounded-md flex-shrink-0"
+                              style={{
+                                background:
+                                  msg.storyPreview.textBg || "#1a1a2e",
+                              }}
+                            />
+                          )}
+                          <p className="text-xs text-muted-foreground truncate">
+                            Replied to{" "}
+                            <span className="font-semibold text-foreground">
+                              @{msg.storyPreview.username}
+                            </span>
+                            's story
+                          </p>
                         </div>
                       )}
+
+                      {/* Story share card */}
+                      {msg.storyShare && (
+                        <div
+                          className={`rounded-2xl overflow-hidden border border-border ${
+                            isMine ? "rounded-br-sm" : "rounded-bl-sm"
+                          }`}
+                          data-ocid="messages.story_share.card"
+                        >
+                          {/* Story thumbnail */}
+                          <div className="w-48 h-28 relative bg-muted">
+                            {msg.storyShare.type === "image" &&
+                            msg.storyShare.mediaDataUrl ? (
+                              <img
+                                src={msg.storyShare.mediaDataUrl}
+                                alt="story"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div
+                                className="w-full h-full flex items-center justify-center p-3"
+                                style={{
+                                  background:
+                                    msg.storyShare.textBg || "#1a1a2e",
+                                }}
+                              >
+                                <p className="text-white text-xs font-bold text-center leading-snug line-clamp-3">
+                                  {msg.storyShare.textContent}
+                                </p>
+                              </div>
+                            )}
+                            {/* Story badge */}
+                            <div className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-black/60 backdrop-blur-sm rounded-full px-2 py-0.5">
+                              <Forward className="w-3 h-3 text-white" />
+                              <span className="text-white text-[10px] font-medium">
+                                Story
+                              </span>
+                            </div>
+                          </div>
+                          <div
+                            className={`px-3 py-2 text-xs ${
+                              isMine
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted text-foreground"
+                            }`}
+                          >
+                            <p className="font-semibold">
+                              @{msg.storyShare.username}'s story
+                            </p>
+                            <p className="opacity-70 mt-0.5">Tap to view</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Regular message / video link (only when not a story share) */}
+                      {!msg.storyShare &&
+                        (isVideoMsg ? (
+                          <div className="w-64">
+                            <VideoLinkPreview
+                              url={msg.text}
+                              onClick={() => handleVideoLinkClick(msg.text)}
+                            />
+                          </div>
+                        ) : (
+                          <div
+                            className={`px-3 py-2 rounded-2xl text-sm leading-relaxed ${
+                              isMine
+                                ? "bg-primary text-primary-foreground rounded-br-sm"
+                                : "bg-muted text-foreground rounded-bl-sm"
+                            }`}
+                          >
+                            {msg.text}
+                          </div>
+                        ))}
+
                       <div className="flex items-center gap-1">
                         <span className="text-[10px] text-muted-foreground">
                           {msg.timestamp}
@@ -471,7 +467,7 @@ export default function MessagesPage() {
             )}
 
             {showEmoji && (
-              <div className="absolute bottom-20 left-3 z-50 md:left-auto md:right-auto">
+              <div className="absolute bottom-20 left-3 z-50 md:left-auto">
                 <EmojiPicker onSelect={handleEmojiSelect} />
               </div>
             )}
