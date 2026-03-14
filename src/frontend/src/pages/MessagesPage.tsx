@@ -432,11 +432,15 @@ export default function MessagesPage() {
 
                       {/* Story share card */}
                       {msg.storyShare && (
-                        <div
-                          className={`rounded-2xl overflow-hidden border border-border ${
+                        <button
+                          type="button"
+                          className={`rounded-2xl overflow-hidden border border-border text-left w-fit ${
                             isMine ? "rounded-br-sm" : "rounded-bl-sm"
                           }`}
                           data-ocid="messages.story_share.card"
+                          onClick={() =>
+                            handleStoryPreviewTap(msg.storyShare?.storyId)
+                          }
                         >
                           {/* Story thumbnail */}
                           <div className="w-48 h-28 relative bg-muted">
@@ -480,7 +484,7 @@ export default function MessagesPage() {
                             </p>
                             <p className="opacity-70 mt-0.5">Tap to view</p>
                           </div>
-                        </div>
+                        </button>
                       )}
 
                       {/* Regular message / video link (only when not a story share) */}
