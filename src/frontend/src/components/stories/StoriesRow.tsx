@@ -4,10 +4,12 @@ import {
   ChevronRight,
   Eye,
   Forward,
+  MoreVertical,
   Plus,
   Send,
   SmilePlus,
   Users,
+  VolumeX,
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -39,6 +41,7 @@ export interface Story {
 
 // ── Storage helpers ─────────────────────────────────────────────────────────
 const STORIES_KEY = "yw_stories";
+const MUTED_KEY = "yw_muted_stories";
 const STORY_TTL_MS = 32 * 60 * 60 * 1000;
 
 export function loadStories(): Story[] {
@@ -59,6 +62,20 @@ export function saveStories(stories: Story[]) {
   localStorage.setItem(STORIES_KEY, JSON.stringify(live));
 }
 
+export function loadMutedUsers(): Record<string, string> {
+  // { userId: username }
+  try {
+    const raw = localStorage.getItem(MUTED_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveMutedUsers(muted: Record<string, string>) {
+  localStorage.setItem(MUTED_KEY, JSON.stringify(muted));
+}
+
 function formatTimeAgo(ts: number): string {
   const diff = Math.floor((Date.now() - ts) / 1000);
   if (diff < 60) return `${diff}s ago`;
@@ -66,6 +83,9 @@ function formatTimeAgo(ts: number): string {
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
 }
+
+const STORY_DURATION_MS = 7000; // 7s per story
+const REACTIONS = ["❤️", "👍", "😂", "😮", "🔥"] as const;
 
 // ── Share Story Sheet ────────────────────────────────────────────────────────
 function ShareStorySheet({
@@ -98,27 +118,21 @@ function ShareStorySheet({
       className="fixed inset-0 z-[60] flex items-end justify-center"
       data-ocid="share_story.modal"
     >
-      {/* Backdrop */}
       <button
         type="button"
         className="absolute inset-0 bg-black/60"
         onClick={onClose}
         aria-label="Close"
       />
-
-      {/* Sheet */}
       <div className="relative z-10 w-full max-w-sm bg-background rounded-t-2xl pb-safe">
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
         </div>
-
         <div className="px-4 pb-6">
           <h3 className="font-semibold text-base mb-1">Share Story</h3>
           <p className="text-xs text-muted-foreground mb-4">
             Send @{story.username}'s story to a conversation
           </p>
-
-          {/* Story preview */}
           <div className="flex items-center gap-3 bg-muted/50 rounded-xl px-3 py-2.5 mb-4">
             {story.type === "image" && story.mediaDataUrl ? (
               <img
@@ -143,8 +157,6 @@ function ShareStorySheet({
               </p>
             </div>
           </div>
-
-          {/* Conversation list */}
           {conversations.length === 0 ? (
             <p
               className="text-sm text-muted-foreground text-center py-6"
@@ -179,7 +191,6 @@ function ShareStorySheet({
               ))}
             </div>
           )}
-
           <button
             type="button"
             onClick={onClose}
@@ -213,7 +224,6 @@ function StoryReplyBar({
   function handleSend() {
     if (!text.trim()) return;
     if (story.userId === currentUserId) return;
-
     const conv = getOrCreateConversation(story.userId, story.username);
     sendMessage(conv.id, text.trim(), {
       storyId: story.id,
@@ -281,7 +291,6 @@ function StoryReplyBar({
               />
             </div>
           )}
-
           <button
             type="button"
             onClick={() => setShowEmoji((v) => !v)}
@@ -290,7 +299,6 @@ function StoryReplyBar({
           >
             <SmilePlus className="w-5 h-5" />
           </button>
-
           <input
             ref={inputRef}
             value={text}
@@ -305,7 +313,6 @@ function StoryReplyBar({
             className="flex-1 bg-white/10 backdrop-blur-sm text-white placeholder:text-white/40 rounded-full px-4 py-2 text-sm outline-none border border-white/20 focus:border-white/50 transition-colors"
             data-ocid="story_reply.input"
           />
-
           <button
             type="button"
             onClick={handleSend}
@@ -321,6 +328,62 @@ function StoryReplyBar({
   );
 }
 
+// ── Story Reactions ──────────────────────────────────────────────────────────
+function StoryReactions({
+  story,
+  currentUserId,
+}: {
+  story: Story;
+  currentUserId: string;
+}) {
+  const [sentReaction, setSentReaction] = useState<string | null>(null);
+  const { getOrCreateConversation, sendMessage } = useConversations();
+
+  if (story.userId === currentUserId) return null;
+
+  function handleReaction(emoji: string) {
+    if (sentReaction) return;
+    const conv = getOrCreateConversation(story.userId, story.username);
+    sendMessage(conv.id, `${emoji} Reacted to your story`, {
+      storyId: story.id,
+      username: story.username,
+      type: story.type,
+      mediaDataUrl: story.mediaDataUrl,
+      textContent: story.textContent,
+      textBg: story.textBg,
+    });
+    setSentReaction(emoji);
+    setTimeout(() => setSentReaction(null), 2000);
+  }
+
+  return (
+    <div
+      className="absolute bottom-20 left-0 right-0 z-20 flex justify-center gap-3 px-4"
+      data-ocid="story_reactions.section"
+    >
+      {sentReaction ? (
+        <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-4 py-2">
+          <span className="text-xl">{sentReaction}</span>
+          <span className="text-white text-sm font-medium">Sent!</span>
+        </div>
+      ) : (
+        REACTIONS.map((emoji, i) => (
+          <button
+            key={emoji}
+            type="button"
+            onClick={() => handleReaction(emoji)}
+            data-ocid={`story_reactions.button.${i + 1}`}
+            className="text-2xl bg-black/40 backdrop-blur-sm hover:bg-black/60 active:scale-110 rounded-full w-11 h-11 flex items-center justify-center transition-all hover:scale-110"
+            aria-label={`React with ${emoji}`}
+          >
+            {emoji}
+          </button>
+        ))
+      )}
+    </div>
+  );
+}
+
 // ── Story viewer modal ───────────────────────────────────────────────────────
 export function StoryViewerModal({
   stories,
@@ -329,6 +392,7 @@ export function StoryViewerModal({
   currentUsername,
   onClose,
   onStoriesUpdate,
+  onMuteUser,
 }: {
   stories: Story[];
   startIndex: number;
@@ -336,13 +400,18 @@ export function StoryViewerModal({
   currentUsername: string;
   onClose: () => void;
   onStoriesUpdate: (stories: Story[]) => void;
+  onMuteUser?: (userId: string, username: string) => void;
 }) {
   const [idx, setIdx] = useState(startIndex);
   const [showViewers, setShowViewers] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const story = stories[idx] ?? null;
 
-  // Mark story as viewed
+  // Mark as viewed
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional - only re-run on story id change
   useEffect(() => {
     if (!story) return;
     if (story.userId === currentUserId) return;
@@ -366,7 +435,38 @@ export function StoryViewerModal({
     saveStories(updated);
     onStoriesUpdate(updated.filter((s) => s.expiresAt > Date.now()));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [story, currentUserId, currentUsername, onStoriesUpdate]);
+  }, [story?.id, currentUserId]);
+
+  // Progress timer — auto-advance
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional - only re-run on story/idx change
+  useEffect(() => {
+    if (!story) return;
+    setProgress(0);
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    const TICK_MS = 50;
+    const total = STORY_DURATION_MS;
+    let elapsed = 0;
+
+    timerRef.current = setInterval(() => {
+      elapsed += TICK_MS;
+      const pct = Math.min((elapsed / total) * 100, 100);
+      setProgress(pct);
+      if (elapsed >= total) {
+        if (timerRef.current) clearInterval(timerRef.current);
+        // auto-advance
+        setIdx((prev) => {
+          if (prev < stories.length - 1) return prev + 1;
+          onClose();
+          return prev;
+        });
+      }
+    }, TICK_MS);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [idx, story?.id, stories.length, onClose]);
 
   if (!story) return null;
 
@@ -381,20 +481,30 @@ export function StoryViewerModal({
     if (idx > 0) setIdx(idx - 1);
   };
 
+  const handleMute = () => {
+    setShowMenu(false);
+    onMuteUser?.(story.userId, story.username);
+    onClose();
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 bg-black flex items-center justify-center"
       data-ocid="story_viewer.modal"
     >
-      {/* Progress bars */}
+      {/* Progress bars — timer driven */}
       <div className="absolute top-0 left-0 right-0 flex gap-1 p-2 z-10">
-        {stories.map((_, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: index is stable here
-          <div key={i} className="flex-1 h-0.5 rounded-full bg-white/30">
+        {stories.map((s, i) => (
+          <div
+            key={s.id || i}
+            className="flex-1 h-0.5 rounded-full bg-white/30 overflow-hidden"
+          >
             <div
-              className={`h-full rounded-full bg-white transition-all duration-300 ${
-                i < idx ? "w-full" : i === idx ? "w-1/2" : "w-0"
-              }`}
+              className="h-full rounded-full bg-white transition-none"
+              style={{
+                width: i < idx ? "100%" : i === idx ? `${progress}%` : "0%",
+                transition: i === idx ? "none" : undefined,
+              }}
             />
           </div>
         ))}
@@ -413,8 +523,7 @@ export function StoryViewerModal({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1">
-          {/* Share button — visible to everyone */}
+        <div className="flex items-center gap-1 relative">
           <button
             type="button"
             onClick={() => setShowShare(true)}
@@ -424,6 +533,33 @@ export function StoryViewerModal({
           >
             <Forward className="w-5 h-5" />
           </button>
+          {/* Three-dot menu — non-owner only */}
+          {!isOwner && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowMenu((v) => !v)}
+                className="text-white/80 hover:text-white p-1.5 rounded-full hover:bg-white/10 transition-colors"
+                data-ocid="story_viewer.dropdown_menu"
+                aria-label="More options"
+              >
+                <MoreVertical className="w-5 h-5" />
+              </button>
+              {showMenu && (
+                <div className="absolute right-0 top-8 bg-background border border-border rounded-xl shadow-xl w-44 overflow-hidden z-50">
+                  <button
+                    type="button"
+                    onClick={handleMute}
+                    className="w-full flex items-center gap-2 px-4 py-3 text-sm hover:bg-muted transition-colors text-left"
+                    data-ocid="story_viewer.mute_button"
+                  >
+                    <VolumeX className="w-4 h-4 text-muted-foreground" />
+                    Mute @{story.username}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           <button
             type="button"
             onClick={onClose}
@@ -487,6 +623,11 @@ export function StoryViewerModal({
         </button>
       )}
 
+      {/* Reactions row — non-owner */}
+      {!isOwner && (
+        <StoryReactions story={story} currentUserId={currentUserId} />
+      )}
+
       {/* View count — owner only */}
       {isOwner && (
         <button
@@ -542,8 +683,7 @@ export function StoryViewerModal({
             ) : (
               story.viewers.map((viewer, i) => (
                 <div
-                  // biome-ignore lint/suspicious/noArrayIndexKey: viewer list is append-only
-                  key={`${viewer.userId}-${i}`}
+                  key={viewer.userId}
                   className="flex items-center gap-3"
                   data-ocid={`story_viewers.item.${i + 1}`}
                 >
@@ -639,7 +779,6 @@ function AddStoryModal({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-sm" data-ocid="add_story.dialog">
         <h2 className="font-bold text-base mb-3">Add Story</h2>
-
         <div className="flex gap-2 mb-4">
           {(["image", "text"] as const).map((t) => (
             <button
@@ -758,6 +897,8 @@ export default function StoriesRow() {
   const { isAuthenticated, userProfile, identity } = useAuthContext();
   const { getBlobUrl } = useStorage();
   const [stories, setStories] = useState<Story[]>(loadStories);
+  const [mutedUsers, setMutedUsers] =
+    useState<Record<string, string>>(loadMutedUsers);
   const [viewingIndex, setViewingIndex] = useState<number | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
@@ -770,11 +911,25 @@ export default function StoriesRow() {
   const currentUsername =
     userProfile?.username || userProfile?.displayName || "You";
 
-  const userStoryMap = stories.reduce<Record<string, Story[]>>((acc, s) => {
-    if (!acc[s.userId]) acc[s.userId] = [];
-    acc[s.userId].push(s);
-    return acc;
-  }, {});
+  const handleMuteUser = (userId: string, username: string) => {
+    const updated = { ...mutedUsers, [userId]: username };
+    setMutedUsers(updated);
+    saveMutedUsers(updated);
+  };
+
+  // Filter out muted users (never filter own stories)
+  const visibleStories = stories.filter(
+    (s) => s.userId === currentUserId || !mutedUsers[s.userId],
+  );
+
+  const userStoryMap = visibleStories.reduce<Record<string, Story[]>>(
+    (acc, s) => {
+      if (!acc[s.userId]) acc[s.userId] = [];
+      acc[s.userId].push(s);
+      return acc;
+    },
+    {},
+  );
 
   const orderedUserIds = Object.keys(userStoryMap).sort((a, b) =>
     a === currentUserId ? -1 : b === currentUserId ? 1 : 0,
@@ -809,11 +964,11 @@ export default function StoriesRow() {
   };
 
   const handleViewUser = (userId: string) => {
-    const startIdx = stories.findIndex((s) => s.userId === userId);
+    const startIdx = visibleStories.findIndex((s) => s.userId === userId);
     setViewingIndex(startIdx >= 0 ? startIdx : 0);
   };
 
-  if (!isAuthenticated && stories.length === 0) return null;
+  if (!isAuthenticated && visibleStories.length === 0) return null;
 
   return (
     <>
@@ -901,12 +1056,13 @@ export default function StoriesRow() {
 
       {viewingIndex !== null && (
         <StoryViewerModal
-          stories={stories}
+          stories={visibleStories}
           startIndex={viewingIndex}
           currentUserId={currentUserId}
           currentUsername={currentUsername}
           onClose={() => setViewingIndex(null)}
           onStoriesUpdate={setStories}
+          onMuteUser={handleMuteUser}
         />
       )}
 

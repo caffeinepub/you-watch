@@ -10,9 +10,13 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Save, Settings } from "lucide-react";
+import { Loader2, Save, Settings, VolumeX } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import {
+  loadMutedUsers,
+  saveMutedUsers,
+} from "../components/stories/StoriesRow";
 
 const LANGUAGES = [
   "English",
@@ -103,6 +107,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [saving, setSaving] = useState(false);
+  const [mutedUsers, setMutedUsers] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -114,6 +119,7 @@ export default function SettingsPage() {
         // ignore
       }
     }
+    setMutedUsers(loadMutedUsers());
   }, []);
 
   const update = (key: keyof AppSettings, value: string | boolean) => {
@@ -126,12 +132,22 @@ export default function SettingsPage() {
     });
   };
 
+  const handleUnmute = (userId: string) => {
+    const updated = { ...mutedUsers };
+    delete updated[userId];
+    setMutedUsers(updated);
+    saveMutedUsers(updated);
+    toast.success("Unmuted successfully");
+  };
+
   const handleSave = async () => {
     setSaving(true);
     await new Promise((r) => setTimeout(r, 600));
     setSaving(false);
     toast.success("Settings saved successfully");
   };
+
+  const mutedEntries = Object.entries(mutedUsers);
 
   return (
     <div className="px-4 py-6 max-w-2xl mx-auto animate-fade-in">
@@ -199,6 +215,52 @@ export default function SettingsPage() {
                 ))}
               </div>
             </div>
+          </div>
+
+          {/* Muted Stories Section */}
+          <div className="rounded-xl border border-border bg-card p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <VolumeX className="w-4 h-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold">Muted Stories</h3>
+              {mutedEntries.length > 0 && (
+                <Badge variant="secondary" className="ml-auto text-xs">
+                  {mutedEntries.length}
+                </Badge>
+              )}
+            </div>
+            {mutedEntries.length === 0 ? (
+              <p
+                className="text-sm text-muted-foreground text-center py-4"
+                data-ocid="muted_stories.empty_state"
+              >
+                No muted stories. You're seeing all creators.
+              </p>
+            ) : (
+              <div className="space-y-2" data-ocid="muted_stories.list">
+                {mutedEntries.map(([userId, username], i) => (
+                  <div
+                    key={userId}
+                    className="flex items-center justify-between py-2"
+                    data-ocid={`muted_stories.item.${i + 1}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-bold text-muted-foreground">
+                        {username.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-sm font-medium">@{username}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleUnmute(userId)}
+                      className="text-xs text-primary font-semibold hover:underline"
+                      data-ocid={`muted_stories.delete_button.${i + 1}`}
+                    >
+                      Unmute
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </TabsContent>
 
