@@ -138,6 +138,12 @@ export interface UserProfile {
     avatarBlobId?: string;
 }
 
+export interface UserSearchResult {
+    username: string;
+    displayName: string;
+    avatarBlobId?: string;
+}
+
 export interface NotificationRecord {
     id: string;
     notifType: string;
@@ -191,6 +197,7 @@ export interface backendInterface {
     likeVideo(videoId: string): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     searchVideos(searchTerm: string): Promise<Array<Video>>;
+    searchUsers(query: string): Promise<Array<UserSearchResult>>;
     subscribeToChannel(channelOwnerId: Principal): Promise<void>;
     unsubscribeFromChannel(channelOwnerId: Principal): Promise<void>;
     updateVideoStatus(id: string, status: VideoStatus): Promise<void>;
@@ -711,6 +718,14 @@ export class Backend implements backendInterface {
     }
     async deletePlaylist(arg0: string): Promise<void> {
         await this.actor.deletePlaylist(arg0);
+    }
+    async searchUsers(arg0: string): Promise<Array<UserSearchResult>> {
+        const result = await (this.actor as any).searchUsers(arg0);
+        return result.map((r: any) => ({
+            username: r.username,
+            displayName: r.displayName,
+            avatarBlobId: r.avatarBlobId && r.avatarBlobId.length > 0 ? r.avatarBlobId[0] : undefined,
+        }));
     }
 }
 function from_candid_Channel_n21(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Channel): Channel {

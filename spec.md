@@ -1,27 +1,24 @@
 # YOU WATCH
 
 ## Current State
-Stories are fully implemented with viewing, replies, sharing, view counts, and clickable preview cards in chat. The StoryViewerModal in StoriesRow.tsx handles all story interactions. Progress bars are static (no timer-based fill). No reaction buttons exist. No mute functionality exists.
+The Messages page has a search bar that only searches across existing conversation users (local filter). There is no backend `searchUsers` API. The backend `users` Map contains all registered user profiles but is not exposed for search.
 
 ## Requested Changes (Diff)
 
 ### Add
-- **Story Reactions**: Row of 5 emoji reactions (❤️ 👍 😂 😮 🔥) shown while viewing a story (non-owner only). Tapping a reaction sends it as a message to the story owner in Messages and shows a brief sent confirmation.
-- **Story Progress Indicator**: Animated timer-based progress bar at the top of the story viewer. Each story auto-advances after a set duration (5s for text, 7s for image). Bar fills smoothly and auto-moves to next story on completion.
-- **Mute Stories**: Long-press or three-dot menu on a story circle in the row to mute that creator. Muted creators' stories are hidden from the stories row. Muted list stored in localStorage. Users can unmute from Settings page under a "Muted Stories" section.
+- `searchUsers(query: Text): [UserSearchResult]` backend query — searches all registered users by username (case-insensitive, partial match), excludes the caller, returns max 20 results with username and avatarBlobId.
+- `UserSearchResult` type in backend and `backend.d.ts`.
+- Backend-powered user search in `MessagesPage.tsx` replacing the current local conversation filter.
 
 ### Modify
-- StoryViewerModal: Add animated progress bar, reaction buttons, and mute option
-- StoriesRow: Filter out muted users from story circles
-- SettingsPage: Add Muted Stories section with unmute controls
+- `main.mo`: add `UserSearchResult` type and `searchUsers` query function.
+- `backend.d.ts`: add `UserSearchResult` interface and `searchUsers` method.
+- `MessagesPage.tsx`: replace `searchConversationUsers` with a `useEffect` that calls `actor.searchUsers(query)` and renders real results with avatar and username.
 
 ### Remove
-- Static non-animated progress bar segments (replace with timed animated version)
+- `searchConversationUsers` local helper function from `MessagesPage.tsx`.
 
 ## Implementation Plan
-1. Add mute helpers (localStorage key, load/save muted list)
-2. Update StoryViewerModal: replace static progress bars with timer-driven animated bars that auto-advance
-3. Add StoryReactions component below reply bar (non-owner only): 5 emoji buttons, tap sends message to story owner
-4. Add mute option (three-dot menu in story header) to mute the current story creator
-5. Filter muted users from StoriesRow circles
-6. Add Muted Stories section in SettingsPage with list of muted creators and unmute buttons
+1. Add `UserSearchResult` type and `searchUsers` to `main.mo`.
+2. Add `UserSearchResult` interface and `searchUsers` signature to `backend.d.ts`.
+3. Update `MessagesPage.tsx` to call `actor.searchUsers(query)` debounced, show avatar (via `getBlobUrl`) and username, keep empty state "No users found".

@@ -10,12 +10,14 @@ import {
   Check,
   CheckCheck,
   Forward,
+  Loader2,
   MessageCircle,
   Search,
   Send,
   SmilePlus,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import type { UserSearchResult } from "../backend";
 import EmojiPicker from "../components/chat/EmojiPicker";
 import VideoLinkPreview, {
   hasVideoLink,
@@ -27,41 +29,15 @@ import {
   saveStories,
 } from "../components/stories/StoriesRow";
 import { useAuthContext } from "../context/AuthContext";
+import { useActor } from "../hooks/useActor";
 import { useConversations } from "../hooks/useConversations";
 import { useStorage } from "../hooks/useStorage";
-
-interface SearchUser {
-  id: string;
-  username: string;
-  initials: string;
-}
-
-function makeInitials(username: string): string {
-  return (
-    username
-      .split(/[_\s]+/)
-      .map((w) => w[0]?.toUpperCase() ?? "")
-      .slice(0, 2)
-      .join("") || username.slice(0, 2).toUpperCase()
-  );
-}
-
-function searchUsersLocal(query: string): SearchUser[] {
-  if (!query.trim()) return [];
-  const q = query.toLowerCase().trim();
-  return [
-    {
-      id: `search-${q}-1`,
-      username: `${q}_user`,
-      initials: makeInitials(`${q}_user`),
-    },
-  ].filter((u) => u.username.toLowerCase().includes(q));
-}
 
 export default function MessagesPage() {
   const navigate = useNavigate();
   const { userProfile } = useAuthContext();
   const { getBlobUrl } = useStorage();
+  const { actor } = useActor();
   const { conversations, messages, getOrCreateConversation, sendMessage } =
     useConversations();
 
@@ -70,9 +46,11 @@ export default function MessagesPage() {
   const [showEmoji, setShowEmoji] = useState(false);
   const isRestricted = false;
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
+  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Story viewer state
   const [storyViewerStories, setStoryViewerStories] = useState<Story[]>([]);
@@ -96,18 +74,42 @@ export default function MessagesPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, activeConvId]);
 
+  // Debounced backend user search
   useEffect(() => {
-    if (searchQuery.trim()) {
-      setSearchResults(searchUsersLocal(searchQuery));
-    } else {
-      setSearchResults([]);
-    }
-  }, [searchQuery]);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
 
-  function handleOpenUserChat(user: SearchUser) {
-    const conv = getOrCreateConversation(user.id, user.username);
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    setSearchLoading(true);
+    searchTimerRef.current = setTimeout(async () => {
+      if (!actor) {
+        setSearchLoading(false);
+        return;
+      }
+      try {
+        const results = await actor.searchUsers(searchQuery.trim());
+        setSearchResults(results);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 350);
+
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    };
+  }, [searchQuery, actor]);
+
+  function handleOpenUserChat(user: UserSearchResult) {
+    const conv = getOrCreateConversation(user.username, user.username);
     setActiveConvId(conv.id);
     setSearchQuery("");
+    setSearchResults([]);
   }
 
   function handleSend() {
@@ -138,7 +140,6 @@ export default function MessagesPage() {
       showExpiredToast();
       return;
     }
-    // Find the group of stories for this user
     const userStories = allStories.filter((s) => s.userId === found.userId);
     const idx = userStories.findIndex((s) => s.id === storyId);
     setStoryViewerStories(userStories);
@@ -204,12 +205,23 @@ export default function MessagesPage() {
               className="pl-9 h-9 bg-muted/50 border-muted text-sm"
               data-ocid="messages.search_input"
             />
+            {searchLoading && (
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />
+            )}
           </div>
         </div>
 
         {showSearch ? (
           <ScrollArea className="flex-1">
-            {searchResults.length === 0 ? (
+            {searchLoading ? (
+              <div
+                className="flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground text-sm"
+                data-ocid="messages.search.loading_state"
+              >
+                <Loader2 className="w-6 h-6 animate-spin opacity-40" />
+                <p>Searching...</p>
+              </div>
+            ) : searchResults.length === 0 ? (
               <div
                 className="flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground text-sm"
                 data-ocid="messages.search.empty_state"
@@ -219,29 +231,44 @@ export default function MessagesPage() {
               </div>
             ) : (
               <div className="py-1">
-                {searchResults.map((user, idx) => (
-                  <button
-                    key={user.id}
-                    type="button"
-                    onClick={() => handleOpenUserChat(user)}
-                    data-ocid={`messages.search_result.item.${idx + 1}`}
-                    className="w-full flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
-                  >
-                    <Avatar className="w-10 h-10 shrink-0">
-                      <AvatarFallback className="text-xs font-bold bg-primary/20 text-primary">
-                        {user.initials}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0 text-left">
-                      <p className="font-medium text-sm truncate">
-                        @{user.username}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Tap to message
-                      </p>
-                    </div>
-                  </button>
-                ))}
+                {searchResults.map((user, idx) => {
+                  const avatarUrl = user.avatarBlobId
+                    ? getBlobUrl(user.avatarBlobId)
+                    : "";
+                  const initials = (user.displayName || user.username)
+                    .charAt(0)
+                    .toUpperCase();
+                  return (
+                    <button
+                      key={user.username}
+                      type="button"
+                      onClick={() => handleOpenUserChat(user)}
+                      data-ocid={`messages.search_result.item.${idx + 1}`}
+                      className="w-full flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
+                    >
+                      <Avatar className="w-10 h-10 shrink-0">
+                        {avatarUrl ? (
+                          <AvatarImage
+                            src={avatarUrl}
+                            alt={user.username}
+                            className="object-cover"
+                          />
+                        ) : null}
+                        <AvatarFallback className="text-xs font-bold bg-primary/20 text-primary">
+                          {initials}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0 text-left">
+                        <p className="font-medium text-sm truncate">
+                          @{user.username}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {user.displayName}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </ScrollArea>

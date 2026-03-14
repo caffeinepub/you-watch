@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useAuthContext } from "../../context/AuthContext";
+import { pushStoryReactionNotif } from "../../context/NotificationsContext";
 import { useConversations } from "../../hooks/useConversations";
 import { useStorage } from "../../hooks/useStorage";
 import EmojiPicker from "../chat/EmojiPicker";
@@ -332,9 +333,11 @@ function StoryReplyBar({
 function StoryReactions({
   story,
   currentUserId,
+  currentUsername,
 }: {
   story: Story;
   currentUserId: string;
+  currentUsername: string;
 }) {
   const [sentReaction, setSentReaction] = useState<string | null>(null);
   const { getOrCreateConversation, sendMessage } = useConversations();
@@ -351,6 +354,16 @@ function StoryReactions({
       mediaDataUrl: story.mediaDataUrl,
       textContent: story.textContent,
       textBg: story.textBg,
+    });
+    // Push bell notification to story owner
+    pushStoryReactionNotif({
+      storyOwnerUserId: story.username,
+      reactorUsername: currentUsername,
+      reactorAvatarSeed: currentUsername,
+      emoji,
+      storyId: story.id,
+      storyCreatedAt: story.createdAt,
+      conversationId: conv.id,
     });
     setSentReaction(emoji);
     setTimeout(() => setSentReaction(null), 2000);
@@ -625,7 +638,11 @@ export function StoryViewerModal({
 
       {/* Reactions row — non-owner */}
       {!isOwner && (
-        <StoryReactions story={story} currentUserId={currentUserId} />
+        <StoryReactions
+          story={story}
+          currentUserId={currentUserId}
+          currentUsername={currentUsername}
+        />
       )}
 
       {/* View count — owner only */}
@@ -893,7 +910,9 @@ function AddStoryModal({
 }
 
 // ── Main export ──────────────────────────────────────────────────────────────
-export default function StoriesRow() {
+export default function StoriesRow({
+  openStoryId,
+}: { openStoryId?: string } = {}) {
   const { isAuthenticated, userProfile, identity } = useAuthContext();
   const { getBlobUrl } = useStorage();
   const [stories, setStories] = useState<Story[]>(loadStories);
@@ -906,6 +925,17 @@ export default function StoriesRow() {
     const id = setInterval(() => setStories(loadStories()), 60_000);
     return () => clearInterval(id);
   }, []);
+
+  // Auto-open story from URL param (e.g. notification tap)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional - run when openStoryId or stories change
+  useEffect(() => {
+    if (!openStoryId || stories.length === 0) return;
+    const flatStories = stories;
+    const storyIdx = flatStories.findIndex((s) => s.id === openStoryId);
+    if (storyIdx !== -1) {
+      setViewingIndex(storyIdx);
+    }
+  }, [openStoryId, stories.length]);
 
   const currentUserId = identity?.getPrincipal().toString() ?? "";
   const currentUsername =

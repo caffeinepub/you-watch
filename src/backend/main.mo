@@ -35,6 +35,12 @@ actor {
     createdAt : Time.Time;
   };
 
+  public type UserSearchResult = {
+    username : Text;
+    displayName : Text;
+    avatarBlobId : ?Text;
+  };
+
   type Channel = {
     userId : Principal;
     name : Text;
@@ -152,6 +158,26 @@ actor {
       Runtime.trap("Unauthorized: Can only view your own profile");
     };
     users.get(user);
+  };
+
+  // USER SEARCH
+
+  public query ({ caller }) func searchUsers(searchQuery : Text) : async [UserSearchResult] {
+    let q = searchQuery.toLower();
+    let results = List.empty<UserSearchResult>();
+    for ((userId, profile) in users.entries()) {
+      if (userId != caller and profile.username.toLower().contains(#text(q))) {
+        results.add({
+          username = profile.username;
+          displayName = profile.displayName;
+          avatarBlobId = profile.avatarBlobId;
+        });
+        if (results.size() >= 20) {
+          return results.toArray();
+        };
+      };
+    };
+    results.toArray();
   };
 
   // VIDEO OPERATIONS

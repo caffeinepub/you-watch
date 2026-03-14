@@ -4,6 +4,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Bell,
   Heart,
@@ -14,14 +15,14 @@ import {
   UserPlus,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   type Notification,
   type NotificationType,
   useNotifications,
 } from "../context/NotificationsContext";
 
-type FilterTab = "all" | "comments" | "mentions";
+type FilterTab = "all" | "comments" | "mentions" | "reactions";
 
 function relativeTime(date: Date): string {
   const diffMs = Date.now() - date.getTime();
@@ -51,6 +52,7 @@ const TYPE_ICONS: Record<NotificationType, React.ReactNode> = {
   mention: <Bell className="w-4 h-4" />,
   subscribe: <UserPlus className="w-4 h-4" />,
   like: <ThumbsUp className="w-4 h-4" />,
+  story_reaction: <span className="text-sm">✨</span>,
 };
 
 const TYPE_COLORS: Record<NotificationType, string> = {
@@ -60,6 +62,7 @@ const TYPE_COLORS: Record<NotificationType, string> = {
   mention: "bg-purple-500/20 text-purple-400",
   subscribe: "bg-rose-500/20 text-rose-400",
   like: "bg-amber-500/20 text-amber-400",
+  story_reaction: "bg-pink-500/20 text-pink-400",
 };
 
 function NotificationRow({
@@ -70,6 +73,31 @@ function NotificationRow({
   index: number;
 }) {
   const { markRead, deleteNotification } = useNotifications();
+  const navigate = useNavigate();
+
+  function handleClick() {
+    markRead(notification.id);
+    if (notification.type === "story_reaction") {
+      const storyActive =
+        Date.now() < (notification.storyCreatedAt ?? 0) + 32 * 60 * 60 * 1000;
+      if (storyActive && notification.storyId) {
+        navigate({ to: "/" });
+        setTimeout(() => {
+          const url = new URL(window.location.href);
+          url.searchParams.set("openStory", notification.storyId!);
+          window.history.replaceState({}, "", url.toString());
+          window.dispatchEvent(new PopStateEvent("popstate"));
+        }, 50);
+      } else if (notification.conversationId) {
+        navigate({ to: "/messages" });
+        setTimeout(() => {
+          const url = new URL(window.location.href);
+          url.searchParams.set("conv", notification.conversationId!);
+          window.history.replaceState({}, "", url.toString());
+        }, 50);
+      }
+    }
+  }
 
   return (
     <motion.div
@@ -82,7 +110,7 @@ function NotificationRow({
       className={`relative flex items-start gap-3 p-3 rounded-xl hover:bg-muted/50 cursor-pointer transition-colors group ${
         !notification.read ? "border-l-2 border-primary bg-primary/5" : ""
       }`}
-      onClick={() => markRead(notification.id)}
+      onClick={handleClick}
     >
       {/* Avatar */}
       <div className="shrink-0 relative">
@@ -110,6 +138,13 @@ function NotificationRow({
         <p className="text-xs text-muted-foreground mt-0.5">
           {relativeTime(notification.createdAt)}
         </p>
+        {notification.type === "story_reaction" &&
+          notification.storyCreatedAt &&
+          Date.now() > notification.storyCreatedAt + 32 * 60 * 60 * 1000 && (
+            <p className="text-xs text-muted-foreground/60 mt-0.5 italic">
+              Story expired · opens chat
+            </p>
+          )}
       </div>
 
       {/* Right: type icon */}
@@ -169,9 +204,22 @@ function SectionHeader({ label }: { label: string }) {
 }
 
 export default function NotificationsPage() {
-  const { notifications, unreadCount, loading, markAllRead } =
-    useNotifications();
+  const {
+    notifications,
+    unreadCount,
+    unreadReactionCount,
+    loading,
+    markAllRead,
+    markAllStoryReactionsRead,
+  } = useNotifications();
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
+
+  // When user opens the Story Reactions tab, mark all as read
+  useEffect(() => {
+    if (activeTab === "reactions" && unreadReactionCount > 0) {
+      markAllStoryReactionsRead();
+    }
+  }, [activeTab, unreadReactionCount, markAllStoryReactionsRead]);
 
   const filtered = useMemo(() => {
     if (activeTab === "comments") {
@@ -181,6 +229,9 @@ export default function NotificationsPage() {
     }
     if (activeTab === "mentions") {
       return notifications.filter((n) => n.type === "mention");
+    }
+    if (activeTab === "reactions") {
+      return notifications.filter((n) => n.type === "story_reaction");
     }
     return notifications;
   }, [notifications, activeTab]);
@@ -199,6 +250,7 @@ export default function NotificationsPage() {
     { key: "all", label: "All" },
     { key: "comments", label: "Comments" },
     { key: "mentions", label: "Mentions" },
+    { key: "reactions", label: "Story Reactions" },
   ];
 
   const emptyMessage =
@@ -206,7 +258,9 @@ export default function NotificationsPage() {
       ? "No comments or replies yet"
       : activeTab === "mentions"
         ? "No mentions yet"
-        : "No notifications yet";
+        : activeTab === "reactions"
+          ? "No story reactions yet"
+          : "No notifications yet";
 
   return (
     <div className="max-w-2xl mx-auto px-4 pb-24">
@@ -227,28 +281,45 @@ export default function NotificationsPage() {
         )}
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex gap-1 mb-2 bg-muted/40 rounded-xl p-1">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            data-ocid="notifications.tab"
-            onClick={() => setActiveTab(tab.key)}
-            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
-              activeTab === tab.key
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {tab.label}
-            {tab.key === "all" && unreadCount > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            )}
-          </button>
-        ))}
+      {/* Filter Tabs — horizontally scrollable */}
+      <div className="flex gap-1 mb-2 overflow-x-auto hide-scrollbar">
+        {tabs.map((tab) => {
+          const isReactionsTab = tab.key === "reactions";
+          const badgeCount =
+            tab.key === "all"
+              ? unreadCount
+              : isReactionsTab
+                ? unreadReactionCount
+                : 0;
+          const isActive = activeTab === tab.key;
+
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              data-ocid="notifications.tab"
+              onClick={() => setActiveTab(tab.key)}
+              className={`relative shrink-0 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+                isActive
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "bg-muted/40 text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tab.label}
+              {badgeCount > 0 && (
+                <span
+                  className={`ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold ${
+                    isActive
+                      ? "bg-primary-foreground text-primary"
+                      : "bg-red-500 text-white"
+                  }`}
+                >
+                  {badgeCount > 99 ? "99+" : badgeCount}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Loading state */}

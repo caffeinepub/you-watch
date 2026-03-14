@@ -48,6 +48,11 @@ export interface UserProfile {
     createdAt: Time;
     avatarBlobId?: string;
 }
+export interface UserSearchResult {
+    username: string;
+    displayName: string;
+    avatarBlobId?: string;
+}
 export interface NotificationRecord {
     id: string;
     notifType: string;
@@ -94,6 +99,7 @@ export interface backendInterface {
     markAllMyNotificationsRead(): Promise<void>;
     markNotificationRead(id: string): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    searchUsers(query: string): Promise<Array<UserSearchResult>>;
     searchVideos(searchTerm: string): Promise<Array<Video>>;
     subscribeToChannel(channelOwnerId: Principal): Promise<void>;
     unsubscribeFromChannel(channelOwnerId: Principal): Promise<void>;

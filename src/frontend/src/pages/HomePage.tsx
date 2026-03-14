@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight, Clock, Play, Sparkles, TrendingUp } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Video } from "../backend";
 import AIAssistantButton from "../components/common/AIAssistantButton";
 import StoriesRow from "../components/stories/StoriesRow";
@@ -98,6 +98,29 @@ const SECTIONS = [
 
 export default function HomePage() {
   const { data: allVideos = [], isLoading } = useAllVideos();
+  const [openStoryId, setOpenStoryId] = useState<string | undefined>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("openStory") ?? undefined;
+  });
+
+  // Listen for popstate (from notification tap) to pick up openStory param
+  useEffect(() => {
+    const handler = () => {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get("openStory");
+      if (id) setOpenStoryId(id);
+    };
+    window.addEventListener("popstate", handler);
+    return () => window.removeEventListener("popstate", handler);
+  }, []);
+
+  // Clear openStoryId from URL once consumed
+  useEffect(() => {
+    if (!openStoryId) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("openStory");
+    window.history.replaceState({}, "", url.toString());
+  }, [openStoryId]);
 
   const continueWatching = useMemo(() => {
     const progressEntries = getAllProgress();
@@ -150,7 +173,7 @@ export default function HomePage() {
 
       {/* Stories row */}
       <section className="mb-6" data-ocid="home.stories.section">
-        <StoriesRow />
+        <StoriesRow openStoryId={openStoryId} />
       </section>
 
       {/* Continue Watching */}
