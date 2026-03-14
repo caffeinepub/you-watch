@@ -113,4 +113,6 @@ export interface backendInterface {
     getPlaylistVideos(playlistId: string): Promise<Array<Video>>;
     getVideoPlaylistIds(videoId: string): Promise<Array<string>>;
     deletePlaylist(playlistId: string): Promise<void>;
+    // Video deletion
+    deleteVideo(videoId: string): Promise<void>;
 }

@@ -21,6 +21,7 @@ import {
   Heart,
   ImageIcon,
   ListVideo,
+  Loader2,
   Lock,
   Pencil,
   Plus,
@@ -38,6 +39,7 @@ import {
   useAllVideos,
   useChannel,
   useDeletePlaylist,
+  useDeleteVideo,
   useMyPlaylists,
   useSaveProfile,
 } from "../hooks/useQueries";
@@ -76,6 +78,7 @@ export default function CreatorStudioPage() {
   const { data: playlists = [], isLoading: playlistsLoading } =
     useMyPlaylists();
   const deletePlaylist = useDeletePlaylist();
+  const deleteVideo = useDeleteVideo();
 
   const [channelName, setChannelName] = useState("");
   const [channelDesc, setChannelDesc] = useState("");
@@ -83,9 +86,6 @@ export default function CreatorStudioPage() {
     id: string;
     title: string;
   } | null>(null);
-  const [deletedVideoIds, setDeletedVideoIds] = useState<Set<string>>(
-    new Set(),
-  );
   const [deletePlaylistTarget, setDeletePlaylistTarget] = useState<{
     id: string;
     name: string;
@@ -107,11 +107,9 @@ export default function CreatorStudioPage() {
   const creatorVideos = useMemo(() => {
     if (!currentPrincipal) return [];
     return allVideos.filter(
-      (v) =>
-        v.uploaderUserId.toString() === currentPrincipal.toString() &&
-        !deletedVideoIds.has(v.id),
+      (v) => v.uploaderUserId.toString() === currentPrincipal.toString(),
     );
-  }, [allVideos, currentPrincipal, deletedVideoIds]);
+  }, [allVideos, currentPrincipal]);
 
   // Initialise fields from channel data when loaded (run once)
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally runs only when channelInfo loads
@@ -152,9 +150,16 @@ export default function CreatorStudioPage() {
 
   const handleDeleteVideo = () => {
     if (!deleteVideoTarget) return;
-    setDeletedVideoIds((prev) => new Set([...prev, deleteVideoTarget.id]));
-    toast.success(`"${deleteVideoTarget.title}" removed`);
-    setDeleteVideoTarget(null);
+    deleteVideo.mutate(deleteVideoTarget.id, {
+      onSuccess: () => {
+        toast.success("Video deleted");
+        setDeleteVideoTarget(null);
+      },
+      onError: () => {
+        toast.error("Failed to delete video");
+        setDeleteVideoTarget(null);
+      },
+    });
   };
 
   const handleDeletePlaylist = () => {
@@ -658,19 +663,20 @@ export default function CreatorStudioPage() {
       >
         <DialogContent data-ocid="creator_studio.dialog">
           <DialogHeader>
-            <DialogTitle>Remove Video</DialogTitle>
+            <DialogTitle>Delete this video?</DialogTitle>
             <DialogDescription>
-              Remove{" "}
+              This will permanently remove{" "}
               <span className="font-semibold text-foreground">
                 &ldquo;{deleteVideoTarget?.title}&rdquo;
               </span>{" "}
-              from your studio view?
+              and cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setDeleteVideoTarget(null)}
+              disabled={deleteVideo.isPending}
               data-ocid="creator_studio.cancel_button"
             >
               Cancel
@@ -678,10 +684,15 @@ export default function CreatorStudioPage() {
             <Button
               variant="destructive"
               onClick={handleDeleteVideo}
+              disabled={deleteVideo.isPending}
               data-ocid="creator_studio.confirm_button"
             >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Remove
+              {deleteVideo.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Trash2 className="w-4 h-4 mr-2" />
+              )}
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

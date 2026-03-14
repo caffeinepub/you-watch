@@ -139,6 +139,7 @@ export interface UserProfile {
 }
 
 export interface UserSearchResult {
+    userId: import("@icp-sdk/core/principal").Principal;
     username: string;
     displayName: string;
     avatarBlobId?: string;
@@ -722,6 +723,7 @@ export class Backend implements backendInterface {
     async searchUsers(arg0: string): Promise<Array<UserSearchResult>> {
         const result = await (this.actor as any).searchUsers(arg0);
         return result.map((r: any) => ({
+            userId: r.userId,
             username: r.username,
             displayName: r.displayName,
             avatarBlobId: r.avatarBlobId && r.avatarBlobId.length > 0 ? r.avatarBlobId[0] : undefined,

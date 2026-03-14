@@ -36,6 +36,7 @@ actor {
   };
 
   public type UserSearchResult = {
+    userId : Principal;
     username : Text;
     displayName : Text;
     avatarBlobId : ?Text;
@@ -169,6 +170,7 @@ actor {
       if (userId != caller and profile.username.toLower().contains(#text(q))) {
         results.add({
           username = profile.username;
+          userId = userId;
           displayName = profile.displayName;
           avatarBlobId = profile.avatarBlobId;
         });
@@ -232,6 +234,24 @@ actor {
     };
 
     id;
+  };
+
+  public shared ({ caller }) func deleteVideo(videoId : Text) : async () {
+    switch (videos.get(videoId)) {
+      case (?video) {
+        if (video.uploaderUserId != caller) {
+          Runtime.trap("Unauthorized: Only the video owner can delete this video");
+        };
+        // Remove from videos map
+        videos.remove(videoId);
+        // Remove from all playlists
+        for ((playlistId, videoList) in playlistVideoIds.entries()) {
+          let filtered = videoList.filter(func(id : Text) : Bool { id != videoId });
+          playlistVideoIds.add(playlistId, filtered);
+        };
+      };
+      case (null) { Runtime.trap("Video not found") };
+    };
   };
 
   public shared ({ caller }) func updateVideoStatus(id : Text, status : VideoStatus) : async () {

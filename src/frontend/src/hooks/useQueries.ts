@@ -306,3 +306,21 @@ export function useDeletePlaylist() {
     },
   });
 }
+
+export function useDeleteVideo() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (videoId: string) => {
+      if (!actor) throw new Error("Not connected");
+      // Cast to any since deleteVideo is a newly added backend method
+      await (actor as any).deleteVideo(videoId);
+    },
+    onSuccess: (_, videoId) => {
+      qc.invalidateQueries({ queryKey: ["videos"] });
+      qc.invalidateQueries({ queryKey: ["video", videoId] });
+      qc.invalidateQueries({ queryKey: ["myPlaylists"] });
+      qc.invalidateQueries({ queryKey: ["playlistVideos"] });
+    },
+  });
+}

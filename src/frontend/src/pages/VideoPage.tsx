@@ -1,8 +1,17 @@
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import CommentSection from "../components/comments/CommentSection";
 import AutoplayOverlay from "../components/video/AutoplayOverlay";
 import CommentsPreview from "../components/video/CommentsPreview";
@@ -14,7 +23,12 @@ import VideoPlayer from "../components/video/VideoPlayer";
 import { useAuthContext } from "../context/AuthContext";
 import { useChannel } from "../hooks/useChannel";
 import { useStorage } from "../hooks/useStorage";
-import { useAllVideos, useLikeVideo, useVideo } from "../hooks/useVideos";
+import {
+  useAllVideos,
+  useDeleteVideo,
+  useLikeVideo,
+  useVideo,
+} from "../hooks/useVideos";
 import {
   clearProgress,
   getProgress,
@@ -33,8 +47,10 @@ export default function VideoPage() {
   );
   const { data: allVideos, isLoading: loadingSuggested } = useAllVideos();
   const { mutate: likeVideo, isPending: liking } = useLikeVideo();
+  const { mutate: deleteVideo, isPending: deleting } = useDeleteVideo();
   const [showComments, setShowComments] = useState(false);
   const [showAutoplay, setShowAutoplay] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   // ── Loading State ────────────────────────────────────────────────────────────
   if (isLoading) {
@@ -131,6 +147,18 @@ export default function VideoPage() {
     setShowAutoplay(false);
   };
 
+  const handleDeleteConfirm = () => {
+    deleteVideo(video.id, {
+      onSuccess: () => {
+        toast.success("Video deleted");
+        navigate({ to: "/" });
+      },
+      onError: () => {
+        toast.error("Failed to delete video");
+      },
+    });
+  };
+
   return (
     <div className="px-4 py-4 max-w-4xl mx-auto animate-fade-in">
       {/* Back button row */}
@@ -147,6 +175,17 @@ export default function VideoPage() {
         <span className="font-display font-black text-lg tracking-tight">
           YOU <span className="text-primary">WATCH</span>
         </span>
+        {isOwnVideo && (
+          <button
+            type="button"
+            onClick={() => setShowDeleteDialog(true)}
+            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs text-destructive hover:bg-destructive/10 transition-colors"
+            data-ocid="video.delete_button"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete video
+          </button>
+        )}
       </div>
 
       {/* Main single-column content */}
@@ -230,6 +269,40 @@ export default function VideoPage() {
           onPlayNow={handleAutoplayConfirm}
         />
       )}
+
+      {/* Delete Video Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent data-ocid="video.dialog">
+          <DialogHeader>
+            <DialogTitle>Delete this video?</DialogTitle>
+            <DialogDescription>
+              This will permanently remove the video. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteDialog(false)}
+              data-ocid="video.cancel_button"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={deleting}
+              data-ocid="video.confirm_button"
+            >
+              {deleting ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Trash2 className="w-4 h-4 mr-2" />
+              )}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

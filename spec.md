@@ -1,24 +1,25 @@
 # YOU WATCH
 
 ## Current State
-The Messages page has a search bar that only searches across existing conversation users (local filter). There is no backend `searchUsers` API. The backend `users` Map contains all registered user profiles but is not exposed for search.
+The backend has no `deleteVideo` function. In CreatorStudioPage, clicking the delete trash icon only removes the video from local state (UI-only), not from the database. The VideoPage has no delete option for creators.
 
 ## Requested Changes (Diff)
 
 ### Add
-- `searchUsers(query: Text): [UserSearchResult]` backend query — searches all registered users by username (case-insensitive, partial match), excludes the caller, returns max 20 results with username and avatarBlobId.
-- `UserSearchResult` type in backend and `backend.d.ts`.
-- Backend-powered user search in `MessagesPage.tsx` replacing the current local conversation filter.
+- Backend: `deleteVideo(videoId)` function — checks caller is uploader, removes video from `videos` map, removes videoId from all playlists in `playlistVideoIds`, removes from all `userPlaylistIds` tracking.
+- Frontend hook: `useDeleteVideo` mutation in `useQueries.ts` that calls `actor.deleteVideo`, then invalidates `["videos"]`, `["video", id]`, `["myPlaylists"]`, and all playlist video queries.
+- VideoPage: "Delete Video" option in a creator options menu (3-dot or explicit button visible only to owner). Shows confirmation dialog "Delete this video?" with Delete/Cancel buttons. On confirm, calls `deleteVideo`, shows "Video deleted" toast, navigates back to home.
 
 ### Modify
-- `main.mo`: add `UserSearchResult` type and `searchUsers` query function.
-- `backend.d.ts`: add `UserSearchResult` interface and `searchUsers` method.
-- `MessagesPage.tsx`: replace `searchConversationUsers` with a `useEffect` that calls `actor.searchUsers(query)` and renders real results with avatar and username.
+- CreatorStudioPage: `handleDeleteVideo` to call `useDeleteVideo` mutation (real backend) instead of just local state removal. Shows "Video deleted" toast on success.
+- Export `useDeleteVideo` from `useVideos.ts`.
 
 ### Remove
-- `searchConversationUsers` local helper function from `MessagesPage.tsx`.
+- Nothing.
 
 ## Implementation Plan
-1. Add `UserSearchResult` type and `searchUsers` to `main.mo`.
-2. Add `UserSearchResult` interface and `searchUsers` signature to `backend.d.ts`.
-3. Update `MessagesPage.tsx` to call `actor.searchUsers(query)` debounced, show avatar (via `getBlobUrl`) and username, keep empty state "No users found".
+1. Add `deleteVideo` shared function to `src/backend/main.mo`.
+2. Add `useDeleteVideo` hook to `src/frontend/src/hooks/useQueries.ts`.
+3. Export it from `src/frontend/src/hooks/useVideos.ts`.
+4. Update `VideoPage.tsx` to add creator delete button with confirmation dialog.
+5. Update `CreatorStudioPage.tsx` to call real backend deletion.
