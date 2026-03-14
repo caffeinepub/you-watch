@@ -18,6 +18,7 @@ export interface Message {
   status: "sent" | "delivered";
   /** Optional story reply preview */
   storyPreview?: {
+    storyId?: string;
     username: string;
     type: "image" | "text";
     mediaDataUrl?: string;

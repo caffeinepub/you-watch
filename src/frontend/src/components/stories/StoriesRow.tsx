@@ -41,7 +41,7 @@ export interface Story {
 const STORIES_KEY = "yw_stories";
 const STORY_TTL_MS = 32 * 60 * 60 * 1000;
 
-function loadStories(): Story[] {
+export function loadStories(): Story[] {
   try {
     const raw = localStorage.getItem(STORIES_KEY);
     if (!raw) return [];
@@ -53,7 +53,7 @@ function loadStories(): Story[] {
   }
 }
 
-function saveStories(stories: Story[]) {
+export function saveStories(stories: Story[]) {
   const now = Date.now();
   const live = stories.filter((s) => s.expiresAt > now);
   localStorage.setItem(STORIES_KEY, JSON.stringify(live));
@@ -216,6 +216,7 @@ function StoryReplyBar({
 
     const conv = getOrCreateConversation(story.userId, story.username);
     sendMessage(conv.id, text.trim(), {
+      storyId: story.id,
       username: story.username,
       type: story.type,
       mediaDataUrl: story.mediaDataUrl,
@@ -321,7 +322,7 @@ function StoryReplyBar({
 }
 
 // ── Story viewer modal ───────────────────────────────────────────────────────
-function StoryViewerModal({
+export function StoryViewerModal({
   stories,
   startIndex,
   currentUserId,

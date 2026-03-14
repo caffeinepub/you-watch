@@ -20,6 +20,12 @@ import EmojiPicker from "../components/chat/EmojiPicker";
 import VideoLinkPreview, {
   hasVideoLink,
 } from "../components/chat/VideoLinkPreview";
+import {
+  type Story,
+  StoryViewerModal,
+  loadStories,
+  saveStories,
+} from "../components/stories/StoriesRow";
 import { useAuthContext } from "../context/AuthContext";
 import { useConversations } from "../hooks/useConversations";
 import { useStorage } from "../hooks/useStorage";
@@ -68,6 +74,12 @@ export default function MessagesPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Story viewer state
+  const [storyViewerStories, setStoryViewerStories] = useState<Story[]>([]);
+  const [storyViewerIndex, setStoryViewerIndex] = useState<number>(0);
+  const [showStoryViewer, setShowStoryViewer] = useState(false);
+  const [storyExpiredMsg, setStoryExpiredMsg] = useState(false);
+
   const activeConv = conversations.find((c) => c.id === activeConvId) ?? null;
   const activeMessages = activeConvId ? (messages[activeConvId] ?? []) : [];
   const videoLinkInInput = hasVideoLink(inputText) ? inputText : null;
@@ -115,10 +127,64 @@ export default function MessagesPage() {
     if (match) navigate({ to: "/video/$id", params: { id: match[1] } });
   }
 
+  function handleStoryPreviewTap(storyId?: string) {
+    const allStories = loadStories();
+    if (!storyId) {
+      showExpiredToast();
+      return;
+    }
+    const found = allStories.find((s) => s.id === storyId);
+    if (!found || found.expiresAt <= Date.now()) {
+      showExpiredToast();
+      return;
+    }
+    // Find the group of stories for this user
+    const userStories = allStories.filter((s) => s.userId === found.userId);
+    const idx = userStories.findIndex((s) => s.id === storyId);
+    setStoryViewerStories(userStories);
+    setStoryViewerIndex(idx >= 0 ? idx : 0);
+    setShowStoryViewer(true);
+  }
+
+  function showExpiredToast() {
+    setStoryExpiredMsg(true);
+    setTimeout(() => setStoryExpiredMsg(false), 3000);
+  }
+
   const showSearch = searchQuery.trim().length > 0;
+
+  const currentUserId = userProfile?.username ?? "me";
+  const currentUsername = userProfile?.username ?? "me";
 
   return (
     <div className="flex h-[calc(100vh-4rem)] md:h-screen overflow-hidden bg-background">
+      {/* Story expired toast */}
+      {storyExpiredMsg && (
+        <div
+          className="fixed top-16 left-1/2 -translate-x-1/2 z-[60] bg-zinc-900 text-white text-sm px-4 py-2 rounded-full shadow-lg pointer-events-none"
+          data-ocid="messages.story_expired.toast"
+        >
+          Story no longer available
+        </div>
+      )}
+
+      {/* Story viewer */}
+      {showStoryViewer && storyViewerStories.length > 0 && (
+        <StoryViewerModal
+          stories={storyViewerStories}
+          startIndex={storyViewerIndex}
+          currentUserId={currentUserId}
+          currentUsername={currentUsername}
+          onClose={() => setShowStoryViewer(false)}
+          onStoriesUpdate={(updated) => {
+            setStoryViewerStories(
+              updated.filter((s) => s.expiresAt > Date.now()),
+            );
+            saveStories(updated);
+          }}
+        />
+      )}
+
       {/* LEFT: Conversation List */}
       <div
         className={`flex flex-col w-full md:w-80 shrink-0 border-r border-border ${
@@ -328,9 +394,16 @@ export default function MessagesPage() {
                     <div
                       className={`flex flex-col gap-1 max-w-[70%] ${isMine ? "items-end" : "items-start"}`}
                     >
-                      {/* Story reply preview */}
+                      {/* Story reply preview — tappable */}
                       {msg.storyPreview && (
-                        <div className="flex items-center gap-2 bg-muted/60 border border-border rounded-xl px-3 py-2 mb-1 max-w-full">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleStoryPreviewTap(msg.storyPreview?.storyId)
+                          }
+                          className="flex items-center gap-2 bg-muted/60 border border-border rounded-xl px-3 py-2 mb-1 max-w-full hover:bg-muted/80 active:scale-95 transition-all cursor-pointer text-left"
+                          data-ocid="messages.story_preview.button"
+                        >
                           {msg.storyPreview.type === "image" &&
                           msg.storyPreview.mediaDataUrl ? (
                             <img
@@ -354,7 +427,7 @@ export default function MessagesPage() {
                             </span>
                             's story
                           </p>
-                        </div>
+                        </button>
                       )}
 
                       {/* Story share card */}
