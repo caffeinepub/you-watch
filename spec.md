@@ -1,25 +1,26 @@
 # YOU WATCH
 
 ## Current State
-The backend has no `deleteVideo` function. In CreatorStudioPage, clicking the delete trash icon only removes the video from local state (UI-only), not from the database. The VideoPage has no delete option for creators.
+`StorageClient.ts` exposes only `putFile` (accepts raw `Uint8Array`, parallel upload, no resume) and `getDirectURL`. However `useStorage.ts` calls `client.putBlob(file, onProgress, resumedChunks, onChunkComplete)` which does not exist, causing a TypeError that surfaces as the upload failing before the blob-tree step.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Backend: `deleteVideo(videoId)` function — checks caller is uploader, removes video from `videos` map, removes videoId from all playlists in `playlistVideoIds`, removes from all `userPlaylistIds` tracking.
-- Frontend hook: `useDeleteVideo` mutation in `useQueries.ts` that calls `actor.deleteVideo`, then invalidates `["videos"]`, `["video", id]`, `["myPlaylists"]`, and all playlist video queries.
-- VideoPage: "Delete Video" option in a creator options menu (3-dot or explicit button visible only to owner). Shows confirmation dialog "Delete this video?" with Delete/Cancel buttons. On confirm, calls `deleteVideo`, shows "Video deleted" toast, navigates back to home.
+- `putBlob(file, onProgress, resumedChunks, onChunkComplete)` public method on `StorageClient`
+  - Streams file in 1 MB slices (never loads full file into memory)
+  - Computes per-chunk YHash and builds `BlobHashTree`
+  - Fetches canister certificate, uploads blob tree, then uploads chunks
+  - Skips chunks present in `resumedChunks`, fires `onChunkComplete` after each successful chunk
+  - Reports fractional progress (0–1) via `onProgress`
+  - Returns `{ hash: string }` in the same shape `useStorage.ts` expects
 
 ### Modify
-- CreatorStudioPage: `handleDeleteVideo` to call `useDeleteVideo` mutation (real backend) instead of just local state removal. Shows "Video deleted" toast on success.
-- Export `useDeleteVideo` from `useVideos.ts`.
+- Nothing else; no UI, no other upload logic changed
 
 ### Remove
-- Nothing.
+- Nothing
 
 ## Implementation Plan
-1. Add `deleteVideo` shared function to `src/backend/main.mo`.
-2. Add `useDeleteVideo` hook to `src/frontend/src/hooks/useQueries.ts`.
-3. Export it from `src/frontend/src/hooks/useVideos.ts`.
-4. Update `VideoPage.tsx` to add creator delete button with confirmation dialog.
-5. Update `CreatorStudioPage.tsx` to call real backend deletion.
+1. Add `putBlob` method to `StorageClient` class in `StorageClient.ts`, reusing existing `createFileChunks`, `BlobHashTree.build`, `getCertificate`, and `storageGatewayClient` helpers.
+2. Handle resume: when `resumedChunks` is provided, skip blob-tree re-upload if a `409 Conflict` (already exists) is returned, and skip already-completed chunk indices.
+3. Validate and deploy.

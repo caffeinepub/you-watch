@@ -33,6 +33,46 @@ const CATEGORIES = [
   "Other",
 ];
 
+// Extension → MIME mapping for video formats from all sources
+const EXT_TO_MIME: Record<string, string> = {
+  mp4: "video/mp4",
+  m4v: "video/mp4",
+  mov: "video/quicktime",
+  qt: "video/quicktime",
+  avi: "video/x-msvideo",
+  mkv: "video/x-matroska",
+  webm: "video/webm",
+  "3gp": "video/3gpp",
+  wmv: "video/x-ms-wmv",
+  hevc: "video/hevc",
+  ts: "video/mp2t",
+  mts: "video/mp2t",
+};
+
+/**
+ * Resolves a File from any source (Apple Photos, Google Photos, local, camera).
+ * - Detects MIME type from extension when the browser reports an empty type.
+ * - Never rejects a file just because its MIME string is unrecognised.
+ */
+async function resolveVideoFile(file: File): Promise<File> {
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const detectedMime = EXT_TO_MIME[ext];
+
+  // If the browser gave us a proper video MIME, trust it
+  if (file.type?.startsWith("video/")) {
+    return file;
+  }
+
+  // Missing or non-video MIME — reconstruct with detected type
+  const mimeType = detectedMime || "video/mp4";
+  const resolved = new File([file], file.name, {
+    type: mimeType,
+    lastModified: file.lastModified,
+  });
+
+  return resolved;
+}
+
 export default function UploadForm() {
   const navigate = useNavigate();
   const { uploads, startUpload } = useUploadContext();
@@ -49,9 +89,16 @@ export default function UploadForm() {
 
   const activeUpload = uploads.find((u) => u.id === submittedId);
 
-  const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleVideoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (f) setVideoFile(f);
+    if (!f) return;
+    try {
+      const resolved = await resolveVideoFile(f);
+      setVideoFile(resolved);
+    } catch {
+      // Even if resolution fails, still accept the file as-is
+      setVideoFile(f);
+    }
   };
 
   const handleThumbnailSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -169,7 +216,7 @@ export default function UploadForm() {
         >
           <input
             type="file"
-            accept="video/*"
+            accept="video/*,video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,video/3gpp,.mp4,.mov,.avi,.mkv,.webm,.3gp,.m4v,.wmv,.hevc,.ts,.mts"
             className="hidden"
             onChange={handleVideoSelect}
             data-ocid="upload.upload_button"
@@ -189,7 +236,7 @@ export default function UploadForm() {
               <Upload className="w-8 h-8 text-muted-foreground" />
               <p className="text-sm font-medium">Click to select video</p>
               <p className="text-xs text-muted-foreground">
-                MP4, MOV, AVI, MKV — up to 2 hours
+                MP4, MOV, AVI, MKV, HEVC — up to 2 hours
               </p>
             </div>
           )}
