@@ -14,7 +14,10 @@ import { useNavigate } from "@tanstack/react-router";
 import { CheckCircle, Film, Image, Upload, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useUploadContext } from "../../context/UploadContext";
+import {
+  type UploadStatus,
+  useUploadContext,
+} from "../../context/UploadContext";
 
 const CATEGORIES = [
   "Entertainment",
@@ -48,6 +51,21 @@ const EXT_TO_MIME: Record<string, string> = {
   ts: "video/mp2t",
   mts: "video/mp2t",
 };
+
+function getFriendlyStatus(status: UploadStatus): string {
+  switch (status) {
+    case "queued":
+    case "uploading-thumb":
+    case "uploading-video":
+      return "Uploading";
+    case "saving":
+      return "Processing";
+    case "paused":
+      return "Waiting for connection...";
+    case "complete":
+      return "Published";
+  }
+}
 
 /**
  * Resolves a File from any source (Apple Photos, Google Photos, local, camera).
@@ -171,8 +189,8 @@ export default function UploadForm() {
               </span>
             </div>
             <Progress value={activeUpload.progress} className="h-2" />
-            <p className="text-xs text-muted-foreground mt-1 capitalize">
-              {activeUpload.status.replace("-", " ")}
+            <p className="text-xs text-muted-foreground mt-1">
+              {getFriendlyStatus(activeUpload.status)}
             </p>
           </div>
         )}
@@ -216,7 +234,7 @@ export default function UploadForm() {
         >
           <input
             type="file"
-            accept="video/*,video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,video/3gpp,.mp4,.mov,.avi,.mkv,.webm,.3gp,.m4v,.wmv,.hevc,.ts,.mts"
+            accept="video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,video/3gpp,video/x-ms-wmv,video/hevc,video/mp2t,.mp4,.mov,.avi,.mkv,.webm,.3gp,.m4v,.wmv,.hevc,.ts,.mts"
             className="hidden"
             onChange={handleVideoSelect}
             data-ocid="upload.upload_button"
@@ -234,10 +252,7 @@ export default function UploadForm() {
           ) : (
             <div className="flex flex-col items-center gap-2 text-center px-4">
               <Upload className="w-8 h-8 text-muted-foreground" />
-              <p className="text-sm font-medium">Click to select video</p>
-              <p className="text-xs text-muted-foreground">
-                MP4, MOV, AVI, MKV, HEVC — up to 2 hours
-              </p>
+              <p className="text-sm font-medium">Select a video to upload</p>
             </div>
           )}
         </label>

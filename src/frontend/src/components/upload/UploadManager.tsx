@@ -1,6 +1,5 @@
 import { Progress } from "@/components/ui/progress";
 import {
-  AlertCircle,
   CheckCircle,
   ChevronDown,
   ChevronUp,
@@ -9,23 +8,34 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
-import { useUploadContext } from "../../context/UploadContext";
+import {
+  type UploadStatus,
+  useUploadContext,
+} from "../../context/UploadContext";
+
+function getFriendlyStatus(status: UploadStatus): string {
+  switch (status) {
+    case "queued":
+    case "uploading-thumb":
+    case "uploading-video":
+      return "Uploading";
+    case "saving":
+      return "Processing";
+    case "paused":
+      return "Waiting for connection...";
+    case "complete":
+      return "Published";
+  }
+}
 
 export default function UploadManager() {
   const { uploads, removeUpload } = useUploadContext();
   const [minimised, setMinimised] = useState(false);
 
-  const activeUploads = uploads.filter(
-    (u) => u.status !== "complete" && u.status !== "error",
-  );
+  const activeUploads = uploads.filter((u) => u.status !== "complete");
   const completedUploads = uploads.filter((u) => u.status === "complete");
 
   if (uploads.length === 0) return null;
-
-  function getStatusLabel(status: string, restored?: boolean): string {
-    if (status === "queued" && restored) return "Resuming...";
-    return status.replace("-", " ");
-  }
 
   return (
     <div
@@ -61,7 +71,7 @@ export default function UploadManager() {
             aria-label={
               minimised ? "Expand uploads panel" : "Minimise uploads panel"
             }
-            data-ocid="upload.panel_toggle"
+            data-ocid="upload.toggle"
           >
             {minimised ? (
               <ChevronUp className="w-3.5 h-3.5" />
@@ -85,8 +95,6 @@ export default function UploadManager() {
                 <div className="shrink-0 mt-0.5">
                   {job.status === "complete" ? (
                     <CheckCircle className="w-4 h-4 text-green-500" />
-                  ) : job.status === "error" ? (
-                    <AlertCircle className="w-4 h-4 text-destructive" />
                   ) : (
                     <Loader2 className="w-4 h-4 text-primary animate-spin" />
                   )}
@@ -95,29 +103,27 @@ export default function UploadManager() {
                   <p className="text-xs font-medium text-foreground truncate">
                     {job.title}
                   </p>
-                  {job.status === "error" ? (
-                    <p className="text-xs text-destructive mt-0.5 truncate">
-                      {job.error ?? "Upload failed"}
-                    </p>
-                  ) : job.status !== "complete" ? (
+                  {job.status === "complete" ? (
+                    <p className="text-xs text-green-500 mt-0.5">Published</p>
+                  ) : (
                     <>
-                      <Progress value={job.progress} className="h-1 mt-1.5" />
-                      <p className="text-xs text-muted-foreground mt-0.5 capitalize">
-                        {getStatusLabel(job.status, job.restored)} •{" "}
-                        {Math.round(job.progress)}%
+                      {job.status !== "paused" && (
+                        <Progress value={job.progress} className="h-1 mt-1.5" />
+                      )}
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {getFriendlyStatus(job.status)}
+                        {job.status !== "paused" &&
+                          ` • ${Math.round(job.progress)}%`}
                       </p>
                     </>
-                  ) : (
-                    <p className="text-xs text-green-500 mt-0.5">
-                      Upload complete
-                    </p>
                   )}
                 </div>
-                {(job.status === "complete" || job.status === "error") && (
+                {job.status === "complete" && (
                   <button
                     type="button"
                     onClick={() => removeUpload(job.id)}
                     className="shrink-0 text-muted-foreground hover:text-foreground"
+                    data-ocid="upload.close_button"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>

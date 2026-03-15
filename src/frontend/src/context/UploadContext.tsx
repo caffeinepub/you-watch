@@ -21,14 +21,13 @@ export type UploadStatus =
   | "uploading-video"
   | "saving"
   | "complete"
-  | "error";
+  | "paused";
 
 export interface UploadJob {
   id: string;
   title: string;
   progress: number;
   status: UploadStatus;
-  error?: string;
   /** true when restored from a previous session and not yet restarted */
   restored?: boolean;
 }
@@ -64,7 +63,7 @@ type PersistedJob = Pick<UploadJob, "id" | "title" | "progress" | "status">;
 function saveJobsToLS(jobs: UploadJob[]): void {
   try {
     const toSave: PersistedJob[] = jobs
-      .filter((j) => j.status !== "complete" && j.status !== "error")
+      .filter((j) => j.status !== "complete")
       .map(({ id, title, progress, status }) => ({
         id,
         title,
@@ -91,6 +90,13 @@ function loadJobsFromLS(): UploadJob[] {
   } catch {
     return [];
   }
+}
+
+function waitForOnline(): Promise<void> {
+  if (navigator.onLine) return Promise.resolve();
+  return new Promise((resolve) =>
+    window.addEventListener("online", () => resolve(), { once: true }),
+  );
 }
 
 export function UploadProvider({ children }: { children: React.ReactNode }) {
@@ -125,59 +131,69 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       metadata: UploadMetadata,
       initialCompletedChunks?: Set<number>,
     ) => {
-      try {
-        let thumbnailBlobId = "";
-        if (thumbnailFile) {
+      // Retry loop: on any failure, pause and wait for connectivity, then retry
+      while (true) {
+        try {
+          let thumbnailBlobId = "";
+          if (thumbnailFile) {
+            updateJob(id, {
+              status: "uploading-thumb",
+              progress: 0,
+              restored: false,
+            });
+            thumbnailBlobId = await uploadBlobRef.current(
+              thumbnailFile as File,
+              (pct) => updateJob(id, { progress: pct * 0.2 }),
+            );
+          }
+
           updateJob(id, {
-            status: "uploading-thumb",
-            progress: 0,
+            status: "uploading-video",
+            progress: thumbnailFile ? 20 : 0,
             restored: false,
           });
-          thumbnailBlobId = await uploadBlobRef.current(
-            thumbnailFile as File,
-            (pct) => updateJob(id, { progress: pct * 0.2 }),
+          const thumbOffset = thumbnailFile ? 20 : 0;
+
+          // Build the resume set — mutated as chunks complete
+          const completedChunks = new Set<number>(initialCompletedChunks ?? []);
+
+          const videoBlobId = await uploadBlobRef.current(
+            videoFile as File,
+            (pct) => updateJob(id, { progress: thumbOffset + pct * 0.75 }),
+            completedChunks,
+            (chunkIdx) => {
+              completedChunks.add(chunkIdx);
+              // Persist completed indices to IndexedDB for resume (fire-and-forget)
+              updateUploadChunks(id, Array.from(completedChunks)).catch(
+                () => {},
+              );
+            },
           );
+
+          updateJob(id, { status: "saving", progress: 95 });
+          const currentActor = actorRef.current;
+          if (!currentActor) throw new Error("Not connected");
+          await currentActor.uploadVideo(
+            metadata.title,
+            metadata.description,
+            metadata.tags,
+            metadata.category,
+            videoBlobId,
+            thumbnailBlobId,
+            BigInt(Math.floor(metadata.duration)),
+          );
+
+          updateJob(id, { status: "complete", progress: 100 });
+          await deleteUploadEntry(id);
+          // Success — exit the retry loop
+          return;
+        } catch {
+          // Pause silently, wait for network, then retry
+          updateJob(id, { status: "paused" });
+          await waitForOnline();
+          // Small delay before retrying to avoid tight loops
+          await new Promise((r) => setTimeout(r, 2000));
         }
-
-        updateJob(id, {
-          status: "uploading-video",
-          progress: thumbnailFile ? 20 : 0,
-          restored: false,
-        });
-        const thumbOffset = thumbnailFile ? 20 : 0;
-
-        // Build the resume set — mutated as chunks complete
-        const completedChunks = new Set<number>(initialCompletedChunks ?? []);
-
-        const videoBlobId = await uploadBlobRef.current(
-          videoFile as File,
-          (pct) => updateJob(id, { progress: thumbOffset + pct * 0.75 }),
-          completedChunks,
-          (chunkIdx) => {
-            completedChunks.add(chunkIdx);
-            // Persist completed indices to IndexedDB for resume (fire-and-forget)
-            updateUploadChunks(id, Array.from(completedChunks)).catch(() => {});
-          },
-        );
-
-        updateJob(id, { status: "saving", progress: 95 });
-        const currentActor = actorRef.current;
-        if (!currentActor) throw new Error("Not connected");
-        await currentActor.uploadVideo(
-          metadata.title,
-          metadata.description,
-          metadata.tags,
-          metadata.category,
-          videoBlobId,
-          thumbnailBlobId,
-          BigInt(Math.floor(metadata.duration)),
-        );
-
-        updateJob(id, { status: "complete", progress: 100 });
-        await deleteUploadEntry(id);
-      } catch (err) {
-        updateJob(id, { status: "error", error: String(err) });
-        await deleteUploadEntry(id);
       }
     },
     [updateJob],
@@ -200,17 +216,8 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         (async () => {
           const entry = await getUploadEntry(job.id);
           if (!entry) {
-            setUploads((p) =>
-              p.map((u) =>
-                u.id === job.id
-                  ? {
-                      ...u,
-                      status: "error",
-                      error: "File no longer available. Please re-upload.",
-                    }
-                  : u,
-              ),
-            );
+            // No IndexedDB entry — silently remove the job
+            setUploads((p) => p.filter((u) => u.id !== job.id));
             return;
           }
           // Restore completed chunk indices for resume
