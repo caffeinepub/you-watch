@@ -236,6 +236,24 @@ actor {
     id;
   };
 
+  public shared ({ caller }) func updateVideo(
+    id : Text,
+    title : Text,
+    description : Text,
+    thumbnailBlobId : Text
+  ) : async () {
+    switch (videos.get(id)) {
+      case (?video) {
+        if (video.uploaderUserId != caller) {
+          Runtime.trap("Unauthorized: Only the video owner can edit this video");
+        };
+        let updated = { video with title; description; thumbnailBlobId };
+        videos.add(id, updated);
+      };
+      case (null) { Runtime.trap("Video not found") };
+    };
+  };
+
   public shared ({ caller }) func deleteVideo(videoId : Text) : async () {
     switch (videos.get(videoId)) {
       case (?video) {

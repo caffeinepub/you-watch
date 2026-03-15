@@ -324,3 +324,28 @@ export function useDeleteVideo() {
     },
   });
 }
+
+export function useUpdateVideo() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      title,
+      description,
+      thumbnailBlobId,
+    }: {
+      id: string;
+      title: string;
+      description: string;
+      thumbnailBlobId: string;
+    }) => {
+      if (!actor) throw new Error("Not connected");
+      await (actor as any).updateVideo(id, title, description, thumbnailBlobId);
+    },
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: ["videos"] });
+      qc.invalidateQueries({ queryKey: ["video", id] });
+    },
+  });
+}

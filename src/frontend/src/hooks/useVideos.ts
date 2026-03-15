@@ -4,4 +4,5 @@ export {
   useSearchVideos,
   useLikeVideo,
   useDeleteVideo,
+  useUpdateVideo,
 } from "./useQueries";

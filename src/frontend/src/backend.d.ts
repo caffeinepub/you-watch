@@ -103,6 +103,7 @@ export interface backendInterface {
     searchVideos(searchTerm: string): Promise<Array<Video>>;
     subscribeToChannel(channelOwnerId: Principal): Promise<void>;
     unsubscribeFromChannel(channelOwnerId: Principal): Promise<void>;
+    updateVideo(id: string, title: string, description: string, thumbnailBlobId: string): Promise<void>;
     updateVideoStatus(id: string, status: VideoStatus): Promise<void>;
     uploadVideo(title: string, description: string, tags: Array<string>, category: string, videoBlobId: string, thumbnailBlobId: string, duration: bigint): Promise<string>;
     // Playlist operations

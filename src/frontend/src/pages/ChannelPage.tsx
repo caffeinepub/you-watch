@@ -1,16 +1,21 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Principal } from "@icp-sdk/core/principal";
 import { useParams } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { toast } from "sonner";
+import type { Video } from "../backend";
 import ChannelHeader from "../components/channel/ChannelHeader";
+import EditVideoModal from "../components/video/EditVideoModal";
 import VideoGrid from "../components/video/VideoGrid";
 import { useAuthContext } from "../context/AuthContext";
 import { useChannel } from "../hooks/useChannel";
-import { useAllVideos } from "../hooks/useVideos";
+import { useAllVideos, useDeleteVideo } from "../hooks/useVideos";
 
 export default function ChannelPage() {
   const { userId } = useParams({ from: "/channel/$userId" });
   const { identity } = useAuthContext();
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  const [editingVideo, setEditingVideo] = useState<Video | null>(null);
 
   let principal: Principal | null = null;
   try {
@@ -24,10 +29,41 @@ export default function ChannelPage() {
     10_000,
   );
   const { data: allVideos = [], isLoading: videosLoading } = useAllVideos();
+  const deleteVideoMutation = useDeleteVideo();
+
+  const isOwner = !!identity && identity.getPrincipal().toString() === userId;
 
   const channelVideos = useMemo(
-    () => allVideos.filter((v) => v.uploaderUserId.toString() === userId),
-    [allVideos, userId],
+    () =>
+      allVideos.filter(
+        (v) => v.uploaderUserId.toString() === userId && !deletedIds.has(v.id),
+      ),
+    [allVideos, userId, deletedIds],
+  );
+
+  const handleDelete = useCallback(
+    (videoId: string) => {
+      deleteVideoMutation.mutate(videoId, {
+        onSuccess: () => {
+          setDeletedIds((prev) => new Set([...prev, videoId]));
+          toast.success("Video deleted");
+        },
+        onError: () => {
+          toast.error("Failed to delete video. Please try again.");
+        },
+      });
+    },
+    [deleteVideoMutation],
+  );
+
+  const handleEdit = useCallback(
+    (videoId: string) => {
+      const video = channelVideos.find((v) => v.id === videoId);
+      if (video) {
+        setEditingVideo(video);
+      }
+    },
+    [channelVideos],
   );
 
   if (channelLoading) {
@@ -71,6 +107,15 @@ export default function ChannelPage() {
         videos={channelVideos}
         isLoading={videosLoading}
         emptyMessage="This channel hasn't uploaded any videos yet"
+        isOwner={isOwner}
+        onDelete={handleDelete}
+        onEdit={handleEdit}
+      />
+
+      <EditVideoModal
+        open={!!editingVideo}
+        video={editingVideo}
+        onClose={() => setEditingVideo(null)}
       />
     </div>
   );

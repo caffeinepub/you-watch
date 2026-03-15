@@ -7,6 +7,9 @@ interface VideoGridProps {
   isLoading?: boolean;
   emptyMessage?: string;
   channelNames?: Record<string, string>;
+  isOwner?: boolean;
+  onDelete?: (videoId: string) => void;
+  onEdit?: (videoId: string) => void;
 }
 
 export default function VideoGrid({
@@ -14,6 +17,9 @@ export default function VideoGrid({
   isLoading,
   emptyMessage = "No videos found",
   channelNames,
+  isOwner,
+  onDelete,
+  onEdit,
 }: VideoGridProps) {
   if (isLoading) {
     return (
@@ -64,6 +70,9 @@ export default function VideoGrid({
           <VideoCard
             video={video}
             channelName={channelNames?.[video.uploaderUserId.toString()]}
+            isOwner={isOwner}
+            onDelete={onDelete}
+            onEdit={onEdit}
           />
         </div>
       ))}

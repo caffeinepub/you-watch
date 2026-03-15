@@ -8,6 +8,8 @@ interface StorageHook {
   uploadBlob: (
     file: File,
     onProgress?: (pct: number) => void,
+    resumedChunks?: Set<number>,
+    onChunkComplete?: (chunkIndex: number) => void,
   ) => Promise<string>;
   getBlobUrl: (blobId: string) => string;
   ready: boolean;
@@ -55,11 +57,21 @@ export function useStorage(): StorageHook {
   }, [identity]);
 
   const uploadBlob = useCallback(
-    async (file: File, onProgress?: (pct: number) => void): Promise<string> => {
+    async (
+      file: File,
+      onProgress?: (pct: number) => void,
+      resumedChunks?: Set<number>,
+      onChunkComplete?: (chunkIndex: number) => void,
+    ): Promise<string> => {
       const client = clientRef.current;
       if (!client) throw new Error("Storage not initialized");
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const { hash } = await client.putFile(bytes, onProgress);
+      // Use putBlob — never loads the full file into memory
+      const { hash } = await client.putBlob(
+        file,
+        onProgress,
+        resumedChunks,
+        onChunkComplete,
+      );
       return client.getDirectURL(hash);
     },
     [],
