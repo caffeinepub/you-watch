@@ -141,11 +141,11 @@ class YHash {
     left: YHash | null,
     right: YHash | null,
   ): Promise<YHash> {
-    const leftBytes =
+    let leftBytes =
       left instanceof YHash
         ? left.bytes
         : new TextEncoder().encode("UNBALANCED");
-    const rightBytes =
+    let rightBytes =
       right instanceof YHash
         ? right.bytes
         : new TextEncoder().encode("UNBALANCED");
@@ -538,50 +538,29 @@ export class StorageClient {
     return { hash: hashString };
   }
 
-  /**
-   * Upload a File using 5 MB chunks with resume support.
-   * Never loads the full file into memory — uses File.slice() per chunk.
-   * Skips chunks already present in resumedChunks.
-   * Fires onChunkComplete after each successful chunk for IndexedDB persistence.
-   */
   public async putBlob(
     file: File,
-    onProgress?: (percentage: number) => void,
+    onProgress?: (pct: number) => void,
     resumedChunks?: Set<number>,
     onChunkComplete?: (chunkIndex: number) => void,
   ): Promise<{ hash: string }> {
-    const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB
+    const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
     const httpHeaders: Headers = {
-      "Content-Type": "application/json",
+      "Content-Type": "application/octet-stream",
     };
     const fileHeaders: Headers = {
-      "Content-Type": file.type || "application/octet-stream",
+      "Content-Type": "application/octet-stream",
       "Content-Length": file.size.toString(),
     };
 
-    // Build chunk slices — no full-file buffer
-    const chunks: Blob[] = [];
-    const totalChunks = Math.max(Math.ceil(file.size / CHUNK_SIZE), 1);
-    for (let i = 0; i < totalChunks; i++) {
-      const start = i * CHUNK_SIZE;
-      const end = Math.min(start + CHUNK_SIZE, file.size);
-      chunks.push(file.slice(start, end));
-    }
-
-    // Compute chunk hashes to build the blob tree
-    const chunkHashes: YHash[] = [];
-    for (let i = 0; i < chunks.length; i++) {
-      const chunkData = new Uint8Array(await chunks[i].arrayBuffer());
-      const hash = await YHash.fromChunk(chunkData);
-      chunkHashes.push(hash);
-    }
-
-    const blobHashTree = await BlobHashTree.build(chunkHashes, fileHeaders);
+    // Build hash tree using 5MB chunks (processFileForUpload uses createFileChunks internally)
+    const { chunks, chunkHashes, blobHashTree } =
+      await this.processFileForUpload(file, fileHeaders, CHUNK_SIZE);
     const blobRootHash = blobHashTree.tree.hash;
     const hashString = blobRootHash.toShaString();
 
-    // Register blob tree with backend certificate
     const certificateBytes = await this.getCertificate(hashString);
+
     await this.storageGatewayClient.uploadBlobTree(
       blobHashTree,
       this.bucket,
@@ -591,47 +570,28 @@ export class StorageClient {
       certificateBytes,
     );
 
-    // Upload chunks sequentially, skipping already completed ones
+    // Upload chunks sequentially, skipping already-completed ones
     let completedCount = resumedChunks ? resumedChunks.size : 0;
-    const MAX_CHUNK_RETRIES = 5;
-
     for (let i = 0; i < chunks.length; i++) {
       if (resumedChunks?.has(i)) {
-        if (onProgress) {
-          onProgress(Math.round(((i + 1) / chunks.length) * 100));
-        }
+        // Already uploaded; skip but still count toward progress
         continue;
       }
-
-      let retries = 0;
-      while (retries <= MAX_CHUNK_RETRIES) {
-        try {
-          const chunkData = new Uint8Array(await chunks[i].arrayBuffer());
-          await this.storageGatewayClient.uploadChunk({
-            blobRootHash,
-            chunkHash: chunkHashes[i],
-            chunkIndex: i,
-            chunkData,
-            bucketName: this.bucket,
-            owner: this.backendCanisterId,
-            projectId: this.projectId,
-            httpHeaders,
-          });
-          completedCount++;
-          onChunkComplete?.(i);
-          if (onProgress) {
-            onProgress(Math.round((completedCount / chunks.length) * 100));
-          }
-          break;
-        } catch (err) {
-          retries++;
-          if (retries > MAX_CHUNK_RETRIES) throw err;
-          const delay = Math.min(
-            1000 * 2 ** (retries - 1) + Math.random() * 500,
-            30000,
-          );
-          await new Promise((r) => setTimeout(r, delay));
-        }
+      const chunkData = new Uint8Array(await chunks[i].arrayBuffer());
+      await this.storageGatewayClient.uploadChunk({
+        blobRootHash,
+        chunkHash: chunkHashes[i],
+        chunkIndex: i,
+        chunkData,
+        bucketName: this.bucket,
+        owner: this.backendCanisterId,
+        projectId: this.projectId,
+        httpHeaders,
+      });
+      completedCount++;
+      onChunkComplete?.(i);
+      if (onProgress != null) {
+        onProgress(chunks.length === 0 ? 1 : completedCount / chunks.length);
       }
     }
 
@@ -649,12 +609,13 @@ export class StorageClient {
   private async processFileForUpload(
     file: Blob,
     headers: Headers,
+    chunkSize?: number,
   ): Promise<{
     chunks: Blob[];
     chunkHashes: YHash[];
     blobHashTree: BlobHashTree;
   }> {
-    const chunks = this.createFileChunks(file);
+    const chunks = this.createFileChunks(file, chunkSize);
     const chunkHashes: YHash[] = [];
     for (let i = 0; i < chunks.length; i++) {
       const chunkData = new Uint8Array(await chunks[i].arrayBuffer());

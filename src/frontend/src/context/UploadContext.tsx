@@ -131,8 +131,11 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       metadata: UploadMetadata,
       initialCompletedChunks?: Set<number>,
     ) => {
-      // Retry loop: on any failure, pause and wait for connectivity, then retry
-      while (true) {
+      // Retry loop: initial attempt + 1 retry at most
+      let attempts = 0;
+      const MAX_ATTEMPTS = 2;
+      while (attempts < MAX_ATTEMPTS) {
+        attempts++;
         try {
           let thumbnailBlobId = "";
           if (thumbnailFile) {
@@ -185,13 +188,17 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
 
           updateJob(id, { status: "complete", progress: 100 });
           await deleteUploadEntry(id);
-          // Success — exit the retry loop
+          // Success — exit
           return;
         } catch {
-          // Pause silently, wait for network, then retry
+          // If we've exhausted all attempts, stop and leave job as paused
+          if (attempts >= MAX_ATTEMPTS) {
+            updateJob(id, { status: "paused" });
+            return;
+          }
+          // First failure: pause, wait for network, then retry once
           updateJob(id, { status: "paused" });
           await waitForOnline();
-          // Small delay before retrying to avoid tight loops
           await new Promise((r) => setTimeout(r, 2000));
         }
       }
