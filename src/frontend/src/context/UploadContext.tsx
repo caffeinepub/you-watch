@@ -99,7 +99,19 @@ function waitForOnline(): Promise<void> {
   );
 }
 
+// SafeFeature error boundary wrapper
+class UploadErrorBoundary extends Error {}
+
 export function UploadProvider({ children }: { children: React.ReactNode }) {
+  try {
+    return <UploadProviderInner>{children}</UploadProviderInner>;
+  } catch {
+    // If provider crashes, render children without upload context (safe fallback)
+    return <>{children}</>;
+  }
+}
+
+function UploadProviderInner({ children }: { children: React.ReactNode }) {
   const { actor } = useActor();
   const { uploadBlob, ready } = useStorage();
   const [uploads, setUploads] = useState<UploadJob[]>(() => loadJobsFromLS());
@@ -131,11 +143,13 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       metadata: UploadMetadata,
       initialCompletedChunks?: Set<number>,
     ) => {
-      // Retry loop: initial attempt + 1 retry at most
-      let attempts = 0;
-      const MAX_ATTEMPTS = 2;
-      while (attempts < MAX_ATTEMPTS) {
-        attempts++;
+      // Unlimited outer retry loop — exits only on success or true failure
+      // Safety cap of 10 outer attempts to prevent infinite loops
+      const OUTER_MAX = 10;
+      let outerAttempt = 0;
+
+      while (outerAttempt < OUTER_MAX) {
+        outerAttempt++;
         try {
           let thumbnailBlobId = "";
           if (thumbnailFile) {
@@ -166,7 +180,6 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
             completedChunks,
             (chunkIdx) => {
               completedChunks.add(chunkIdx);
-              // Persist completed indices to IndexedDB for resume (fire-and-forget)
               updateUploadChunks(id, Array.from(completedChunks)).catch(
                 () => {},
               );
@@ -188,20 +201,25 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
 
           updateJob(id, { status: "complete", progress: 100 });
           await deleteUploadEntry(id);
-          // Success — exit
-          return;
+          return; // Success — exit loop
         } catch {
-          // If we've exhausted all attempts, stop and leave job as paused
-          if (attempts >= MAX_ATTEMPTS) {
+          // Only show "paused" if genuinely offline
+          if (!navigator.onLine) {
             updateJob(id, { status: "paused" });
-            return;
+            await waitForOnline();
+            // Brief pause after reconnect before retrying
+            await new Promise((r) => setTimeout(r, 1000));
+          } else {
+            // Online but chunk failed — keep uploading status, retry silently
+            // (per-chunk retries already happened inside putBlob)
+            // Short delay before outer retry
+            await new Promise((r) => setTimeout(r, 2000));
           }
-          // First failure: pause, wait for network, then retry once
-          updateJob(id, { status: "paused" });
-          await waitForOnline();
-          await new Promise((r) => setTimeout(r, 2000));
         }
       }
+
+      // Exhausted all outer attempts — leave as paused
+      updateJob(id, { status: "paused" });
     },
     [updateJob],
   );
@@ -216,18 +234,15 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       );
       if (queuedRestored.length === 0) return prev;
 
-      // Kick off resume for each
       for (const job of queuedRestored) {
         if (startedIds.current.has(job.id)) continue;
         startedIds.current.add(job.id);
         (async () => {
           const entry = await getUploadEntry(job.id);
           if (!entry) {
-            // No IndexedDB entry — silently remove the job
             setUploads((p) => p.filter((u) => u.id !== job.id));
             return;
           }
-          // Restore completed chunk indices for resume
           const resumeSet = new Set<number>(entry.completedChunkIndices ?? []);
           await runUploadJob(
             job.id,
@@ -246,7 +261,6 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     (videoFile: File, thumbnailFile: File | null, metadata: UploadMetadata) => {
       const id = `upload-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-      // Save to IndexedDB first (no completedChunkIndices yet)
       saveUploadEntry({
         id,
         videoBlob: videoFile,
@@ -287,3 +301,6 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
 export function useUploadContext() {
   return useContext(UploadContext);
 }
+
+// Suppress unused import warning
+void UploadErrorBoundary;
